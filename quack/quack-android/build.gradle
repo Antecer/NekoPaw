@@ -1,0 +1,75 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.6.3'
+    }
+}
+
+apply plugin: 'com.android.library'
+
+android {
+  compileSdkVersion 29
+
+  sourceSets {
+    main.java.srcDirs += "../quack-java/src/main/java/"
+    androidTest.java.srcDirs += "../quack-java/src/test/java/"
+  }
+
+  dependencies {
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'com.android.support.test:runner:1.0.2'
+    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+  }
+
+  compileOptions {
+    sourceCompatibility 1.8
+    targetCompatibility 1.8
+  }
+
+  defaultConfig {
+    minSdkVersion 21
+    targetSdkVersion 29
+    versionCode 1
+    versionName "1.0"
+    ndk {
+//      abiFilters(*rootProject.ext.ndkAbiFilters)
+    }
+    externalNativeBuild {
+      cmake {
+        arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static'
+        cFlags '-std=c99', '-fstrict-aliasing', '-DDUK_USE_DEBUGGER_SUPPORT', '-DDUK_USE_INTERRUPT_COUNTER', '-DDUK_USE_DEBUGGER_INSPECT', '-DDUK_USE_DEBUGGER_THROW_NOTIFY', '-DDUK_USE_DEBUGGER_PAUSE_UNCAUGHT', '-DDUK_USE_DEBUGGER_DUMPHEAP', '-Werror'
+        cppFlags '-std=c++11', '-fstrict-aliasing', '-fexceptions', '-Werror'
+      }
+    }
+
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+  }
+  buildTypes {
+    release {
+      externalNativeBuild {
+        cmake {
+          arguments '-DCMAKE_BUILD_TYPE=MinSizeRel'
+          cFlags '-g0', '-Os', '-fomit-frame-pointer', '-DNDEBUG', '-fvisibility=hidden', '-Werror'
+          cppFlags '-g0', '-Os', '-fomit-frame-pointer', '-DNDEBUG', '-fvisibility=hidden', '-Werror'
+        }
+      }
+    }
+    debug {
+      externalNativeBuild {
+        cmake {
+          cFlags '-g', '-DDEBUG', '-Werror'
+          cppFlags '-g', '-DDEBUG', '-Werror'
+        }
+      }
+    }
+  }
+  externalNativeBuild {
+    cmake {
+      path "src/main/jni/CMakeLists.txt"
+    }
+  }
+}

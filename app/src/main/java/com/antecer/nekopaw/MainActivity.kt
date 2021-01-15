@@ -1,16 +1,19 @@
 package com.antecer.nekopaw
 
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import com.koushikdutta.quack.QuackContext
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
+        val quack = QuackContext.create()
+        val result = quack.evaluate("'hello from quack'")
+        println(result)
         // 调用原生方法的示例
-        findViewById<TextView>(R.id.sample_text).text = stringFromJNI()
+        findViewById<TextView>(R.id.sample_text).text = stringFromJNI() + result
     }
 
     /**
