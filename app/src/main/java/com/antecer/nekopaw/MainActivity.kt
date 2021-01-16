@@ -13,7 +13,7 @@ class MainActivity : AppCompatActivity() {
         val result = quack.evaluate("'hello from quack'")
         println(result)
         // 调用原生方法的示例
-        findViewById<TextView>(R.id.sample_text).text = stringFromJNI() + result
+        findViewById<TextView>(R.id.sample_text).text = (stringFromJNI() + result)
     }
 
     /**
