@@ -52,4 +52,8 @@ dependencies {
     testImplementation 'junit:junit:4.13.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
+    // Oasis JsBridge (QuickJS flavor)
+    implementation "de.prosiebensat1digital.oasis-jsbridge-android:oasis-jsbridge-quickjs:0.14.2"
+    // OkHttp
+    implementation "com.squareup.okhttp3:okhttp:4.9.0"
 }
