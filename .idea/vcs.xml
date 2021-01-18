@@ -3,10 +3,5 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/app/src/main/quack" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/quack" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/quack2" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/quack3" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/quickjs" vcs="Git" />
   </component>
 </project>

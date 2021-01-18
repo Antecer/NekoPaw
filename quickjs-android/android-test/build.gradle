@@ -1,0 +1,133 @@
+/*
+ * Copyright 2019 Hippo Seven
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import java.util.regex.Pattern
+import java.util.zip.CRC32
+import org.ajoberstar.grgit.Grgit
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+android {
+    compileSdkVersion 30
+
+    defaultConfig {
+        applicationId 'com.hippo.quickjs.test.android'
+        minSdkVersion 18
+        targetSdkVersion 30
+        versionCode 1
+        versionName '1.0'
+        externalNativeBuild {
+            cmake {
+                arguments '-DCMAKE_VERBOSE_MAKEFILE:BOOL=ON'
+            }
+        }
+    }
+
+    sourceSets {
+        main.assets.srcDirs += 'testassets'
+    }
+
+    def hasReleaseKey = rootProject.file('release.keystore').exists()
+
+    if (hasReleaseKey) {
+        signingConfigs {
+            release {
+                def properties = new Properties()
+                properties.load(rootProject.file('local.properties').newDataInputStream())
+                storeFile file(properties.getProperty('RELEASE_STORE_PATH'))
+                storePassword properties.getProperty('RELEASE_STORE_PASSWORD')
+                keyAlias properties.getProperty('RELEASE_KEY_ALIAS')
+                keyPassword properties.getProperty('RELEASE_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            debuggable false
+            jniDebuggable false
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseKey) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'CMakeLists.txt'
+        }
+    }
+}
+
+void cloneTest262(String name, String dirname) {
+    println("Start cloning $name")
+    def text = new File("${rootProject.projectDir}/quickjs/quickjs/TODO").readLines().join(" ")
+    def pattern = Pattern.compile("$name commit: ([0-9a-f]+)")
+    def matcher = pattern.matcher(text)
+    matcher.find()
+    def commit = matcher.group(1)
+    def dir = "$buildDir/test262/$dirname"
+    def grgit
+    try {
+        grgit = Grgit.open(dir: dir)
+    } catch (ignored) {
+        delete(dir)
+        grgit = Grgit.clone(dir: dir, uri: 'https://github.com/tc39/test262.git')
+    }
+    grgit.checkout(branch: commit)
+    println("End cloning $name")
+}
+
+task bundleTestAssets(type: Zip) {
+    doFirst {
+        delete "${projectDir}/testassets"
+        file("${projectDir}/testassets").mkdirs()
+
+        cloneTest262("Test262o", "test262o")
+        cloneTest262("Test262", "test262")
+    }
+
+    from "${rootProject.projectDir}/quickjs/quickjs", "$buildDir/test262"
+    exclude '**/*.c', '**/*.h'
+    archiveName "testassets.zip"
+    destinationDir file("${projectDir}/testassets")
+
+    doLast {
+        File testassets = file("${projectDir}/testassets/testassets.zip")
+        CRC32 crc32 = new CRC32()
+        testassets.eachByte 4096, { bytes, size ->
+            crc32.update(bytes, 0, size)
+        }
+        new File("${projectDir}/testassets/testassets-${crc32.getValue()}.crc32").createNewFile()
+    }
+}
+
+project.afterEvaluate {
+    generateDebugAssets.dependsOn 'bundleTestAssets'
+    generateReleaseAssets.dependsOn 'bundleTestAssets'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.3.9'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9'
+    implementation 'androidx.core:core:1.3.1'
+    implementation 'net.lingala.zip4j:zip4j:1.3.2'
+    implementation 'com.getkeepsafe.relinker:relinker:1.3.1'
+}

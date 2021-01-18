@@ -1,2 +1,2 @@
-include ':app', ':quack:quack-android'
+include ':app', ':quack:quack-android', ':quickjs-android:library'
 rootProject.name = "neko paw"

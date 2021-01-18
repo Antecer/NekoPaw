@@ -3,10 +3,12 @@ package com.antecer.nekopaw
 import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.hippo.quickjs.android.*
 import com.koushikdutta.quack.QuackContext
 import de.prosiebensat1digital.oasisjsbridge.JsBridge
 import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
 import de.prosiebensat1digital.oasisjsbridge.JsValue
+
 
 class MainActivity : AppCompatActivity() {
     class Foo{
@@ -16,17 +18,35 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         val js = assets.open("bechmarks.js").readBytes().decodeToString()
+
         val quack = QuackContext.create()
         quack.globalObject.set("Foo",Foo::class.java)
         println(quack.evaluate("print = (...args) => new Foo().print([...args]);"))
-        println("begin quack")
+        println("-------------begin quack")
         quack.evaluate(js)
-        println("end quack")
+        println("-------------end quack")
+
         val jsBridge = JsBridge(JsBridgeConfig.bareConfig())
         JsValue.fromNativeFunction1(jsBridge) { s:Any -> println(s) }.assignToGlobal("print")
-        println("begin JsBridge")
+        println("-------------begin JsBridge")
         jsBridge.evaluateNoRetVal(js)
-        println("end JsBridge")
+        println("-------------end JsBridge")
+
+        val quickJS = QuickJS.Builder().build()
+        quickJS.createJSRuntime().use { runtime ->
+            runtime.createJSContext().use { context ->
+                // Create a JSFunction with a callback
+                val print: JSFunction =
+                    context.createJSFunction { context: JSContext, args: Array<JSValue> ->
+                        println(args)
+                        context.createJSUndefined()
+                    }
+                context.globalObject.setProperty("print", print)
+                println("-------------begin seven332")
+                context.evaluate(js, "test.js")
+                println("-------------end seven332")
+            }
+        }
         // 调用原生方法的示例
         findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
     }

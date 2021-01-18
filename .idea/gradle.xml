@@ -14,6 +14,8 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/quack" />
             <option value="$PROJECT_DIR$/quack/quack-android" />
+            <option value="$PROJECT_DIR$/quickjs-android" />
+            <option value="$PROJECT_DIR$/quickjs-android/library" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
