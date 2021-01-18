@@ -4,16 +4,31 @@ import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.koushikdutta.quack.QuackContext
+import de.prosiebensat1digital.oasisjsbridge.JsBridge
+import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
+import de.prosiebensat1digital.oasisjsbridge.JsValue
 
 class MainActivity : AppCompatActivity() {
+    class Foo{
+        fun print(s: Any) = println(s)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        val js = assets.open("bechmarks.js").readBytes().decodeToString()
         val quack = QuackContext.create()
-        val result = quack.evaluate("'hello from quack'")
-        println(result)
+        quack.globalObject.set("Foo",Foo::class.java)
+        println(quack.evaluate("print = (...args) => new Foo().print([...args]);"))
+        println("begin quack")
+        quack.evaluate(js)
+        println("end quack")
+        val jsBridge = JsBridge(JsBridgeConfig.bareConfig())
+        JsValue.fromNativeFunction1(jsBridge) { s:Any -> println(s) }.assignToGlobal("print")
+        println("begin JsBridge")
+        jsBridge.evaluateNoRetVal(js)
+        println("end JsBridge")
         // 调用原生方法的示例
-        findViewById<TextView>(R.id.sample_text).text = (stringFromJNI() + result)
+        findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
     }
 
     /**
@@ -27,4 +42,5 @@ class MainActivity : AppCompatActivity() {
             System.loadLibrary("native-lib")
         }
     }
+
 }
