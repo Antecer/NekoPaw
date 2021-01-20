@@ -1,25 +1,20 @@
 package com.antecer.nekopaw
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.os.Bundle
 import android.util.Log
 import android.widget.TextView
-import de.prosiebensat1digital.oasisjsbridge.JsBridge
-import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
-import de.prosiebensat1digital.oasisjsbridge.JsToNativeInterface
-import de.prosiebensat1digital.oasisjsbridge.JsValue
+import androidx.appcompat.app.AppCompatActivity
+import de.prosiebensat1digital.oasisjsbridge.*
 import kotlinx.coroutines.*
 
-
-class MainActivity : Activity(),
+class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
 
     @ExperimentalCoroutinesApi
     @SuppressLint("LogNotTimber")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //setContentView(R.layout.activity_main)
 
         launch {
             val js = assets.open("bechmarks.js").readBytes().decodeToString()
@@ -63,8 +58,9 @@ class MainActivity : Activity(),
             //jsBridge.evaluateNoRetVal("globalThis.x = $nativeApi.method();")
         }
 
+        setContentView(R.layout.activity_main)
         // 调用原生方法的示例
-        //findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
+        findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
     }
 
     /**

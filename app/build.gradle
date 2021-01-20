@@ -47,7 +47,13 @@ android {
 }
 
 dependencies {
+    implementation 'androidx.core:core-ktx:1.3.2'
+    implementation 'androidx.appcompat:appcompat:1.2.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
+    implementation 'com.google.android.material:material:1.2.1'
+
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation 'androidx.core:core-ktx:1.3.2'
     // Oasis JsBridge (QuickJS flavor) 内置okhttp引用
     implementation "de.prosiebensat1digital.oasis-jsbridge-android:oasis-jsbridge-quickjs:0.14.2"
 }
