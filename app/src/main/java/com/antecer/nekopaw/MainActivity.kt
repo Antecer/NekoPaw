@@ -7,19 +7,21 @@ import android.util.Log
 import android.widget.TextView
 import de.prosiebensat1digital.oasisjsbridge.JsBridge
 import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
+import de.prosiebensat1digital.oasisjsbridge.JsToNativeInterface
 import de.prosiebensat1digital.oasisjsbridge.JsValue
 import kotlinx.coroutines.*
 
 
 class MainActivity : Activity(),
     CoroutineScope by MainScope() {
+
     @ExperimentalCoroutinesApi
     @SuppressLint("LogNotTimber")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        //setContentView(R.layout.activity_main)
 
-
+        launch {
             val js = assets.open("bechmarks.js").readBytes().decodeToString()
 
 
@@ -37,7 +39,7 @@ class MainActivity : Activity(),
 
             jsBridge.evaluateNoRetVal("print(test('s'))")
             jsBridge.evaluateNoRetVal("print(result)")
-            val msg: Deferred<Any> = jsBridge.evaluateAsync<Any>("result")
+            val msg: String = jsBridge.evaluate("result")
             Log.i("JS", "-----JsBridge Get: $msg")
 
 //            val sum: Int = jsBridge.evaluate("1+2")
@@ -46,8 +48,23 @@ class MainActivity : Activity(),
             Log.i("JS", "-------------end JsBridge")
 
 
+
+
+            val obj = object : JsToNativeInterface {
+                fun method(): Double {
+                    return 0.01
+                }
+            }
+            // Create a JS proxy to the native object
+            val nativeApi: JsValue = JsValue.fromNativeObject(jsBridge, obj)
+            JsValue.fromNativeObject(jsBridge, obj).assignToGlobal("natAPI")
+            jsBridge.evaluateNoRetVal("print(natAPI.method())")
+            // Call native method from JS
+            //jsBridge.evaluateNoRetVal("globalThis.x = $nativeApi.method();")
+        }
+
         // 调用原生方法的示例
-        findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
+        //findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
     }
 
     /**
