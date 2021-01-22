@@ -158,7 +158,11 @@ class MainActivity : AppCompatActivity(),
                     else -> null
                 }
             }
-
+            fun dispose(){
+                documentList.clear()
+                elementList.clear()
+                elementsList.clear()
+            }
         }
 
         JsValue.fromNativeObject(jsBridge, document).assignToGlobal("native_dom")
@@ -183,6 +187,7 @@ class MainActivity : AppCompatActivity(),
             var dom2 = parse("<p>546</p>");
             log(dom1.text());
             log(dom2.text());
+            new Document().dispose()
         """.trimIndent()
             logQJS(jsBridge.evaluate(jsCode))
             logQJS("测试结束")
