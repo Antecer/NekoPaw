@@ -1,2 +1,0 @@
-# NekoPaw
-web content crawler

@@ -1,78 +1,151 @@
 package com.antecer.nekopaw
 
-import android.annotation.SuppressLint
-import android.os.Bundle
-import android.util.Log
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import android.os.Bundle
+import com.antecer.nekopaw.databinding.ActivityMainBinding
 import de.prosiebensat1digital.oasisjsbridge.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import timber.log.Timber
+import java.net.SocketTimeoutException
+
+public lateinit var mBinding: ActivityMainBinding
 
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
-
-    @ExperimentalCoroutinesApi
-    @SuppressLint("LogNotTimber")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        launch {
-            val js = assets.open("bechmarks.js").readBytes().decodeToString()
+        mBinding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(mBinding.root)
+        mBinding.printBox.text = stringFromJNI()
 
 
-            Log.i("JS", "-------------begin JsBridge")
+        // 简化Log调用
+        val logQJS = { msg: String -> Timber.tag("QuickJS").i(msg) }
 
-            val result = "12345789"
-            val jsBridge = JsBridge(JsBridgeConfig.bareConfig())
-            // 测试1
-            JsValue.fromNativeValue(jsBridge, result).assignToGlobal("result")
-            JsValue.fromNativeFunction1(jsBridge) { s: Any -> Log.i("JS", s.toString()) }
-                .assignToGlobal("print")
-            JsValue.fromNativeFunction1(jsBridge) { s: String -> (s + "1") }
-                .assignToGlobal("test")
-            Log.i("JS", "-------------mid JsBridge")
+        logQJS("测试开始")
 
-            jsBridge.evaluateNoRetVal("print(test('s'))")
-            jsBridge.evaluateNoRetVal("print(result)")
-            val msg: String = jsBridge.evaluate("result")
-            Log.i("JS", "-----JsBridge Get: $msg")
+        val jsBridge = JsBridge(JsBridgeConfig.bareConfig())
+        logQJS("JS引擎建立")
 
-//            val sum: Int = jsBridge.evaluate("1+2")
-//            Log.i("JsBridgeTest", sum.toString())
-//            Log.i("JsBridgePrint", "-------------begin JsBridge")
-            Log.i("JS", "-------------end JsBridge")
+        JsValue.fromNativeFunction1(jsBridge, logQJS).assignToGlobal("log")
+        logQJS("log函数载入")
 
-
-
-
-            val obj = object : JsToNativeInterface {
-                fun method(): Double {
-                    return 0.01
-                }
+        // 输出数据到UI
+        var viewText = "";
+        val jsPrint = { msg: String ->
+            viewText += ("\n" + msg)
+            mBinding.printBox.post {
+                mBinding.printBox.text = viewText
             }
-            // Create a JS proxy to the native object
-            val nativeApi: JsValue = JsValue.fromNativeObject(jsBridge, obj)
-            JsValue.fromNativeObject(jsBridge, obj).assignToGlobal("natAPI")
-            jsBridge.evaluateNoRetVal("print(natAPI.method())")
-            // Call native method from JS
-            //jsBridge.evaluateNoRetVal("globalThis.x = $nativeApi.method();")
         }
 
-        setContentView(R.layout.activity_main)
-        // 调用原生方法的示例
-        findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
+        JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
+        logQJS("print函数载入")
+        // 模拟fetch请求
+        fun fetch(url: String, params: JsonObjectWrapper?): JsonObjectWrapper {
+            Timber.tag("okHttp").i(url)
+
+            var responseError: String? = null
+            var responseCode: Int? = null
+            var responseMsg: String? = null
+            var responseText: String? = null
+
+            var request = Request.Builder().url(url)
+            try {
+                val paramMap = params?.toPayloadObject()
+                // 设置 user-agent
+                val userAgent = paramMap?.getObject("headers")?.getString("user-agent")
+                if (userAgent != null) request =
+                    request.removeHeader("User-Agent").addHeader("User-Agent", userAgent)
+                // 设置 Referer
+                val referer = paramMap?.getString("Referer")
+                if (referer != null) request = request.addHeader("Referer", referer)
+                // 设置 content-type
+                val mediaType = MediaType.parse(
+                    paramMap?.getObject("headers")?.getString("content-type")
+                        ?: "application/json;charset=UTF-8"
+                )
+                // 设置 body
+                val requestBody = RequestBody.create(mediaType, paramMap?.getString("body") ?: "");
+                // 设置 method(请求模式)
+                val method = paramMap?.getString("method") ?: "GET"
+                request = if (method == "GET") request.get() else request.post(requestBody)
+                // 发送请求
+                val response = OkHttpClient().newCall(request.build()).execute()
+
+                responseCode = response.code()
+                responseMsg = response.message()
+                responseText = response.body()?.string()
+
+                Timber.tag("okHttp").i("Successfully fetched response (query: $url)")
+                Timber.tag("okHttp").i("-> responseCode = $responseCode")
+                Timber.tag("okHttp").i("-> responseMsg = $responseMsg")
+
+            } catch (e: SocketTimeoutException) {
+                Timber.tag("okHttp").i("XHR timeout ($url): $e")
+                responseError = "timeout"
+            } catch (t: Throwable) {
+                Timber.tag("okHttp").i("XHR error ($url): $t")
+                responseError = t.message ?: "unknown XHR error"
+            }
+            return JsonObjectWrapper(
+                "code" to responseCode,
+                "message" to responseMsg,
+                "text" to responseText,
+                "error" to responseError,
+            )
+        }
+        JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? ->
+            fetch(
+                url,
+                params
+            )
+        }.assignToGlobal("fetch")
+        logQJS("fetch函数载入")
+
+        val jsCode = """
+            log('JS Start');
+            var response = fetch('https://www.zhaishuyuan.com/search/', {
+                method: 'POST',
+                headers:{
+                    'content-type': 'application/x-www-form-urlencoded',
+                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36'
+                },
+                body: `key=%D0%DE%D5%E6`
+		    });
+            response.text
+        """.trimIndent()
+
+        val js = assets.open("bechmarks.js").readBytes().decodeToString()
+
+        launch {
+            //logQJS(jsBridge.evaluate(jsCode))
+            var res: Any = jsBridge.evaluate(js);
+            logQJS("测试结束")
+
+            // 调用原生方法的示例
+            //findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
+        }
     }
 
     /**
-     * 由“native-lib”原生库实现的方法，该库随此应用程序一起打包。
+     * 由"native-lib"原生库实现的方法,该库随此应用程序一起打包
      */
     external fun stringFromJNI(): String
 
     companion object {
-        // 用于在应用程序启动时加载“native-lib”库。
+        // 用于在应用程序启动时加载"native-lib"库。
         init {
             System.loadLibrary("native-lib")
         }
     }
-
 }
