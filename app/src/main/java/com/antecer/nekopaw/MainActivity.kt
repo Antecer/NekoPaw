@@ -1,35 +1,35 @@
 package com.antecer.nekopaw
 
-import androidx.appcompat.app.AppCompatActivity
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import de.prosiebensat1digital.oasisjsbridge.*
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import org.jsoup.Jsoup
 import timber.log.Timber
 import java.net.SocketTimeoutException
 
-public lateinit var mBinding: ActivityMainBinding
-
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
+    @SuppressLint("LogNotTimber")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        mBinding = ActivityMainBinding.inflate(layoutInflater)
+        val mBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(mBinding.root)
         mBinding.printBox.text = stringFromJNI()
 
 
         // 简化Log调用
-        val logQJS = { msg: String -> Timber.tag("QuickJS").i(msg) }
+        val logQJS = { msg: String? -> Log.i("QuickJS", msg ?: "null") }
 
         logQJS("测试开始")
 
@@ -40,16 +40,10 @@ class MainActivity : AppCompatActivity(),
         logQJS("log函数载入")
 
         // 输出数据到UI
-        var viewText = "";
-        val jsPrint = { msg: String ->
-            viewText += ("\n" + msg)
-            mBinding.printBox.post {
-                mBinding.printBox.text = viewText
-            }
-        }
+//        val jsPrint = { msg: String -> mBinding.printBox.post { mBinding.printBox.append("\n$msg") } }
+//        JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
+//        logQJS("print函数载入")
 
-        JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
-        logQJS("print函数载入")
         // 模拟fetch请求
         fun fetch(url: String, params: JsonObjectWrapper?): JsonObjectWrapper {
             Timber.tag("okHttp").i(url)
@@ -89,7 +83,6 @@ class MainActivity : AppCompatActivity(),
                 Timber.tag("okHttp").i("Successfully fetched response (query: $url)")
                 Timber.tag("okHttp").i("-> responseCode = $responseCode")
                 Timber.tag("okHttp").i("-> responseMsg = $responseMsg")
-
             } catch (e: SocketTimeoutException) {
                 Timber.tag("okHttp").i("XHR timeout ($url): $e")
                 responseError = "timeout"
@@ -104,15 +97,15 @@ class MainActivity : AppCompatActivity(),
                 "error" to responseError,
             )
         }
-        JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? ->
-            fetch(
-                url,
-                params
-            )
-        }.assignToGlobal("fetch")
+        JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? -> fetch(url, params) }.assignToGlobal("fetch")
         logQJS("fetch函数载入")
 
-        val jsCode = """
+        val jsBenchMarks = assets.open("benchmarks.js").readBytes().decodeToString()
+        val htmlParser = assets.open("htmlparser.js").readBytes().decodeToString()
+
+        launch {
+            val parser: Any = jsBridge.evaluate(htmlParser)
+            val jsCode = """
             log('JS Start');
             var response = fetch('https://www.zhaishuyuan.com/search/', {
                 method: 'POST',
@@ -122,14 +115,11 @@ class MainActivity : AppCompatActivity(),
                 },
                 body: `key=%D0%DE%D5%E6`
 		    });
-            response.text
+            var html = response.text;
+            var doc = HTMLtoDOM(html);
+            doc.getElementsByTagName("p").length
         """.trimIndent()
-
-        val js = assets.open("bechmarks.js").readBytes().decodeToString()
-
-        launch {
-            //logQJS(jsBridge.evaluate(jsCode))
-            var res: Any = jsBridge.evaluate(js);
+            logQJS(jsBridge.evaluate(jsCode))
             logQJS("测试结束")
 
             // 调用原生方法的示例

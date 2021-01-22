@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'kotlin-android'
+    id 'kotlin-parcelize'
 }
 
 android {
@@ -26,6 +27,12 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        android.applicationVariants.all { variant ->
+            variant.outputs.all {
+                def buildTime = new Date().format("yy.MMdd.HHmm", TimeZone.getTimeZone("GMT+8"))
+                outputFileName = "NekoPaw_${buildTime}.apk"
+            }
         }
     }
     externalNativeBuild {
