@@ -14,8 +14,12 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.select.Elements
 import timber.log.Timber
 import java.net.SocketTimeoutException
+import kotlin.math.log
 
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
@@ -29,7 +33,7 @@ class MainActivity : AppCompatActivity(),
 
 
         // 简化Log调用
-        val logQJS = { msg: String? -> Log.i("QuickJS", msg ?: "null") }
+        val logQJS = { msg: Any? -> Log.i("QuickJS", msg?.toString() ?: "null") }
 
         logQJS("测试开始")
 
@@ -100,24 +104,85 @@ class MainActivity : AppCompatActivity(),
         JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? -> fetch(url, params) }.assignToGlobal("fetch")
         logQJS("fetch函数载入")
 
-        val jsBenchMarks = assets.open("benchmarks.js").readBytes().decodeToString()
-        val htmlParser = assets.open("htmlparser.js").readBytes().decodeToString()
+        val document = object:JsToNativeInterface {
+            val documentList = mutableListOf<Document>()
+            val elementsList = mutableListOf<Elements>()
+            val elementList = mutableListOf<Element>()
 
+            fun parse(html:String):JsonObjectWrapper {
+                documentList.add(Jsoup.parse(html))
+                return JsonObjectWrapper(
+                    "address" to documentList.size - 1,
+                    "type" to "document"
+                )
+            }
+
+            fun query(typeAddress:JsonObjectWrapper, query: String): JsonObjectWrapper {
+                val o = typeAddress.toPayloadObject() ?: return JsonObjectWrapper.Undefined
+                val address = o.getInt("address") ?: return JsonObjectWrapper.Undefined
+                val elements = when(o.getString("type")){
+                    "document" -> documentList[address].select(query)
+                    "element" -> elementList[address].select(query)
+                    "elements" -> elementsList[address].select(query)
+                    else -> Elements()
+                }
+                elementsList.add(elements)
+                return JsonObjectWrapper(
+                    "address" to elementsList.size - 1,
+                    "type" to "elements"
+                )
+            }
+
+            fun getElementById(typeAddress:JsonObjectWrapper, id: String): JsonObjectWrapper {
+                val o = typeAddress.toPayloadObject() ?: return JsonObjectWrapper.Undefined
+                val address = o.getInt("address") ?: return JsonObjectWrapper.Undefined
+                val element = when(o.getString("type")){
+                    "document" -> documentList[address].getElementById(id)
+                    "element" -> elementList[address].getElementById(id)
+                    else -> Element("html")
+                }
+                elementList.add(element)
+                return JsonObjectWrapper(
+                    "address" to elementList.size - 1,
+                    "type" to "element"
+                )
+            }
+
+            fun text(typeAddress:JsonObjectWrapper):String? {
+                val o = typeAddress.toPayloadObject() ?: return null
+                val address = o.getInt("address") ?: return null
+                return when(o.getString("type")){
+                    "document" -> documentList[address].text()
+                    "element" -> elementList[address].text()
+                    "elements" -> elementsList[address].text()
+                    else -> null
+                }
+            }
+
+        }
+
+        JsValue.fromNativeObject(jsBridge, document).assignToGlobal("native_dom")
         launch {
-            val parser: Any = jsBridge.evaluate(htmlParser)
             val jsCode = """
-            log('JS Start');
-            var response = fetch('https://www.zhaishuyuan.com/search/', {
-                method: 'POST',
-                headers:{
-                    'content-type': 'application/x-www-form-urlencoded',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36'
-                },
-                body: `key=%D0%DE%D5%E6`
-		    });
-            var html = response.text;
-            var doc = HTMLtoDOM(html);
-            doc.getElementsByTagName("p").length
+                class Document{
+                    constructor(typeAddress){
+                        this.typeAddress = typeAddress;
+                    }
+                    text = function(){
+                        return native_dom.text(this.typeAddress)
+                    }
+                    getElementById = function(id){
+                        return new Document(native_dom.getElementById(this.typeAddress, id))
+                    }
+                    dispose = () => native_dom.dispose()
+                }
+            parse = (html) => new Document(native_dom.parse(html))
+            var dom1 = parse('<div id="outer">outer content<p id="inner">inner content</p></div>')
+                            .getElementById("outer")
+                            .getElementById("inner");
+            var dom2 = parse("<p>546</p>");
+            log(dom1.text());
+            log(dom2.text());
         """.trimIndent()
             logQJS(jsBridge.evaluate(jsCode))
             logQJS("测试结束")
