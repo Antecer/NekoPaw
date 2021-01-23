@@ -128,7 +128,12 @@ class MainActivity : AppCompatActivity(),
                 console.log(dom2.text());
                 var $ = (s)=> dom1.querySelector(s);
                 console.log($('#outer').innerHTML());
-                console.log(dom1.queryText('#outer p'))
+                var arr = new Document('<div><a>1</a><a>2</a><a>3</a></div>');
+                arr.querySelector('a').remove();
+                console.log(JSON.stringify(arr.queryAllText('a')));
+                console.log(JSON.stringify(arr.querySelectorAll('a').text()));
+                $('#inner').before('<a>before</a>');
+                console.log(dom1.innerHTML());
             """.trimIndent()
             jsBridge.evaluateAsync<Any>(jsCode).await()
             jsBridge.evaluateNoRetVal("jsoup.dispose()")

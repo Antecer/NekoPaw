@@ -108,26 +108,81 @@ class JsoupToJS {
                 }
             }
 
-            fun text(mark: String, text: String?): String {
+            fun innerText(mark: String, text: String?): String {
                 return when (mark[0]) {
                     'a' -> aMap[mark]!!.text()
                     'b' -> {
-                        if (text != null) bMap[mark]!!.text(text);
-                        bMap[mark]!!.text()
+                        if (text != null) {
+                            bMap[mark]!!.text(text); text
+                        } else {
+                            bMap[mark]!!.text()
+                        }
                     }
                     'c' -> cMap[mark]!!.text()
                     else -> ""
                 }
             }
 
+            // jsoup自有方法
+            fun remove(mark: String) {
+                when (mark[0]) {
+                    'a' -> aMap[mark]?.remove()
+                    'b' -> bMap[mark]?.remove()
+                    'c' -> cMap[mark]?.remove()
+                }
+            }
+
+            fun before(mark: String, html: String) {
+                when (mark[0]) {
+                    'a' -> aMap[mark]?.before(html)
+                    'b' -> bMap[mark]?.before(html)
+                    'c' -> cMap[mark]?.before(html)
+                }
+            }
+
             // 自定义方法
             fun queryText(trait: String, mark: String): String {
-                val key = "b${bMap.size}"
                 return when (mark[0]) {
                     'a' -> aMap[mark]!!.selectFirst(trait).text()
                     'b' -> bMap[mark]!!.selectFirst(trait).text()
-                    else -> return "null"
+                    else -> ""
                 }
+            }
+
+            fun queryAllText(trait: String, mark: String): Array<String> {
+                val arrText: ArrayList<String> = ArrayList()
+                when (mark[0]) {
+                    'a' -> for (item in aMap[mark]!!.select(trait)) arrText.add(item.text())
+                    'b' -> for (item in bMap[mark]!!.select(trait)) arrText.add(item.text())
+                    'c' -> for (item in cMap[mark]!!.select(trait)) arrText.add(item.text())
+                }
+                return arrText.toTypedArray()
+            }
+
+            fun queryAttr(trait: String, attr: String, mark: String): String {
+                return when (mark[0]) {
+                    'a' -> aMap[mark]!!.selectFirst(trait).attr(attr)
+                    'b' -> bMap[mark]!!.selectFirst(trait).attr(attr)
+                    else -> ""
+                }
+            }
+
+            fun queryAllAttr(trait: String, attr: String, mark: String): Array<String> {
+                val arrAttr: ArrayList<String> = ArrayList()
+                when (mark[0]) {
+                    'a' -> for (item in aMap[mark]!!.select(trait)) arrAttr.add(item.attr(attr))
+                    'b' -> for (item in bMap[mark]!!.select(trait)) arrAttr.add(item.attr(attr))
+                    'c' -> for (item in cMap[mark]!!.select(trait)) arrAttr.add(item.attr(attr))
+                }
+                return arrAttr.toTypedArray()
+            }
+
+            fun queryRemove(base: String, trait: String) {
+                aMap[base]!!.select(trait).remove()
+            }
+
+            fun queryBefore(base: String, trait: String, html: String) {
+                aMap[base]!!.select(trait).before(html)
             }
 
             // 释放占用的资源
@@ -150,14 +205,23 @@ class Document {
 	getElementByClass(trait) { return new Document(null, jsoup.getElementByClass(trait, this.#mark)); }
 	outerHTML() { return jsoup.outerHtml(this.#mark); }
 	innerHTML(html) { return jsoup.innerHTML(this.#mark, html||null); }
-	innerText(text) { return jsoup.text(this.#mark, text||null); }
+	innerText(text) { return jsoup.innerText(this.#mark, text||null); }
 
     // jsoup自有方法
+    selectFirst(trait) { return new Document(null, jsoup.querySelector(trait, this.#mark)); }
+    select(trait) { return new Document(null, jsoup.querySelectorAll(trait, this.#mark)); }
     html(s) { return jsoup.innerHTML(this.#mark, s||null); }
-    text(s) { return jsoup.text(this.#mark, s||null); }
+    text(s) { return jsoup.innerText(this.#mark, s||null); }
+    remove() { jsoup.remove(this.#mark); }
+    before(html) { jsoup.before(this.#mark, html); }
     
     // 自定义方法
+    queryRemove(trait) { jsoup.queryRemove(this.#mark, trait) }
+    queryBefore(trait, html) { jsoup.queryRemove(this.#mark, trait, html) }
     queryText(trait) { return jsoup.queryText(trait, this.#mark); }
+    queryAllText(trait) { return jsoup.queryAllText(trait, this.#mark); }
+    queryAttr(trait, attr) { return jsoup.queryAttr(trait, attr, this.#mark); }
+    queryAllAttr(trait, attr) { return jsoup.queryAllAttr(trait, attr, this.#mark); }
 }
             """.trimIndent()
         runBlocking {
