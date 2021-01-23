@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.antecer.nekopaw.api.JsoupToJS
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import de.prosiebensat1digital.oasisjsbridge.*
 import kotlinx.coroutines.CoroutineScope
@@ -33,20 +34,28 @@ class MainActivity : AppCompatActivity(),
 
 
         // 简化Log调用
-        val logQJS = { msg: Any? -> Log.i("QuickJS", msg?.toString() ?: "null") }
+        val logQJS = { msg: Any? -> Log.i("JsAPI", msg?.toString() ?: "null") }
 
         logQJS("测试开始")
 
         val jsBridge = JsBridge(JsBridgeConfig.bareConfig())
         logQJS("JS引擎建立")
 
+        val console = object : JsToNativeInterface {
+            fun log(msg: Any?) {
+                Log.i("QuickJS", msg?.toString() ?: "null")
+            }
+        }
+        JsValue.fromNativeObject(jsBridge, console).assignToGlobal("console")
+        logQJS("console方法注入")
+
         JsValue.fromNativeFunction1(jsBridge, logQJS).assignToGlobal("log")
         logQJS("log函数载入")
 
         // 输出数据到UI
-//        val jsPrint = { msg: String -> mBinding.printBox.post { mBinding.printBox.append("\n$msg") } }
-//        JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
-//        logQJS("print函数载入")
+        val jsPrint = { msg: String -> mBinding.printBox.post { mBinding.printBox.append("\n$msg") } }
+        JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
+        logQJS("print函数载入")
 
         // 模拟fetch请求
         fun fetch(url: String, params: JsonObjectWrapper?): JsonObjectWrapper {
@@ -104,92 +113,25 @@ class MainActivity : AppCompatActivity(),
         JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? -> fetch(url, params) }.assignToGlobal("fetch")
         logQJS("fetch函数载入")
 
-        val document = object:JsToNativeInterface {
-            val documentList = mutableListOf<Document>()
-            val elementsList = mutableListOf<Elements>()
-            val elementList = mutableListOf<Element>()
+        JsoupToJS().binding(jsBridge, "jsoup")
+        logQJS("jsoup载入")
 
-            fun parse(html:String):JsonObjectWrapper {
-                documentList.add(Jsoup.parse(html))
-                return JsonObjectWrapper(
-                    "address" to documentList.size - 1,
-                    "type" to "document"
-                )
-            }
-
-            fun query(typeAddress:JsonObjectWrapper, query: String): JsonObjectWrapper {
-                val o = typeAddress.toPayloadObject() ?: return JsonObjectWrapper.Undefined
-                val address = o.getInt("address") ?: return JsonObjectWrapper.Undefined
-                val elements = when(o.getString("type")){
-                    "document" -> documentList[address].select(query)
-                    "element" -> elementList[address].select(query)
-                    "elements" -> elementsList[address].select(query)
-                    else -> Elements()
-                }
-                elementsList.add(elements)
-                return JsonObjectWrapper(
-                    "address" to elementsList.size - 1,
-                    "type" to "elements"
-                )
-            }
-
-            fun getElementById(typeAddress:JsonObjectWrapper, id: String): JsonObjectWrapper {
-                val o = typeAddress.toPayloadObject() ?: return JsonObjectWrapper.Undefined
-                val address = o.getInt("address") ?: return JsonObjectWrapper.Undefined
-                val element = when(o.getString("type")){
-                    "document" -> documentList[address].getElementById(id)
-                    "element" -> elementList[address].getElementById(id)
-                    else -> Element("html")
-                }
-                elementList.add(element)
-                return JsonObjectWrapper(
-                    "address" to elementList.size - 1,
-                    "type" to "element"
-                )
-            }
-
-            fun text(typeAddress:JsonObjectWrapper):String? {
-                val o = typeAddress.toPayloadObject() ?: return null
-                val address = o.getInt("address") ?: return null
-                return when(o.getString("type")){
-                    "document" -> documentList[address].text()
-                    "element" -> elementList[address].text()
-                    "elements" -> elementsList[address].text()
-                    else -> null
-                }
-            }
-            fun dispose(){
-                documentList.clear()
-                elementList.clear()
-                elementsList.clear()
-            }
-        }
-
-        JsValue.fromNativeObject(jsBridge, document).assignToGlobal("native_dom")
         launch {
+            logQJS("jsoup包装")
             val jsCode = """
-                class Document{
-                    constructor(typeAddress){
-                        this.typeAddress = typeAddress;
-                    }
-                    text = function(){
-                        return native_dom.text(this.typeAddress)
-                    }
-                    getElementById = function(id){
-                        return new Document(native_dom.getElementById(this.typeAddress, id))
-                    }
-                    dispose = () => native_dom.dispose()
-                }
-            parse = (html) => new Document(native_dom.parse(html))
-            var dom1 = parse('<div id="outer">outer content<p id="inner">inner content</p></div>')
-                            .getElementById("outer")
-                            .getElementById("inner");
-            var dom2 = parse("<p>546</p>");
-            log(dom1.text());
-            log(dom2.text());
-            new Document().dispose()
-        """.trimIndent()
-            logQJS(jsBridge.evaluate(jsCode))
+                var dom1 = new Document('<div id="outer">outer content<p id="inner">inner content</p></div>');
+                var d1 = dom1.getElementById("outer").querySelector("#inner").outerHTML();
+                var d2 = dom1.outerHTML();
+                console.log(d1)
+                console.log(d2)
+                var dom2 = new Document('<p>546</p>');
+                console.log(dom2.text());
+                var $ = (s)=> dom1.querySelector(s);
+                console.log($('#outer').innerHTML());
+                console.log(dom1.queryText('#outer p'))
+            """.trimIndent()
+            jsBridge.evaluateAsync<Any>(jsCode).await()
+            jsBridge.evaluateNoRetVal("jsoup.dispose()")
             logQJS("测试结束")
 
             // 调用原生方法的示例
