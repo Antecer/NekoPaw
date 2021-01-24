@@ -57,17 +57,12 @@ function search(searchKey) {
 			url: urlList[i]
 		});
 	}
-	// 释放资源
-	document.dispose();
-	searchList = null;
-	document = null;
-	print(`搜索页解析完成`);
-
 	print(JSON.stringify(baseObject.search[0]));
+	print(`搜索页解析完成`);
 }
 
 function detail(url) {
-	print(`开始获取详情页 ${url}`);
+	print(`\n\n开始获取详情页 ${url}`);
 	let response = fetch(url);
 	let html = response; //.text;
 	let document = new Document(html);
@@ -83,15 +78,12 @@ function detail(url) {
 		date: document.queryAttr('[property="og:novel:update_time"]', 'content'),
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
-	// 释放资源
-	document.dispose();
-	document = null;
 	print(`详情页解析完成`);
 	print(JSON.stringify(baseObject.detail));
 }
 
 function chapter(url) {
-	print(`开始获取目录页 ${url}`);
+	print(`\n\n开始获取目录页 ${url}`);
 	let response = fetch(url);
 	let html = response; //.text;
 	let document = new Document(html);
@@ -128,15 +120,12 @@ function chapter(url) {
 			item.id = '/chapter/' + bid + '/' + (item.id - bid);
 			return { title: item.cN, time: item.uT, url: item.id };
 		});
-	// 释放资源
-	document.dispose();
-	document = null;
 	print(`目录页解析完成,共 ${baseObject.chapter.length} 章`);
 	print(`第一章: ${JSON.stringify(baseObject.chapter[0])}`);
 }
 
 function context(url) {
-	print(`开始获取正文页 ${url}`);
+	print(`\n\n开始获取正文页 ${url}`);
 	let response = fetch(url);
 	let html = response; //.text;
 	let document = new Document(html);
@@ -150,9 +139,6 @@ function context(url) {
 		print('成功解密内容');
 	}
 	baseObject.context = document.queryAllText('#content p').join(`\n　　`);
-	// 释放资源
-	document.dispose();
-	document = null;
 	print('正文解析完成');
 	print(baseObject.context);
 }
