@@ -178,11 +178,11 @@ class JsoupToJS {
             }
 
             fun queryRemove(base: String, trait: String) {
-                aMap[base]!!.select(trait).remove()
+                aMap[base]?.select(trait)?.remove()
             }
 
             fun queryBefore(base: String, trait: String, html: String) {
-                aMap[base]!!.select(trait).before(html)
+                aMap[base]?.select(trait)?.before(html)
             }
 
             // 释放占用的资源
@@ -222,6 +222,7 @@ class Document {
     queryAllText(trait) { return jsoup.queryAllText(trait, this.#mark); }
     queryAttr(trait, attr) { return jsoup.queryAttr(trait, attr, this.#mark); }
     queryAllAttr(trait, attr) { return jsoup.queryAllAttr(trait, attr, this.#mark); }
+    dispose() { jsoup.dispose(); }
 }
             """.trimIndent()
         runBlocking {

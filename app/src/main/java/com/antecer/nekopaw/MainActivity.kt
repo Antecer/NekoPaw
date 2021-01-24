@@ -2,7 +2,10 @@ package com.antecer.nekopaw
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.text.method.ScrollingMovementMethod
 import android.util.Log
+import android.widget.SearchView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.api.JsoupToJS
 import com.antecer.nekopaw.databinding.ActivityMainBinding
@@ -14,27 +17,73 @@ import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
-import org.jsoup.nodes.Element
-import org.jsoup.select.Elements
 import timber.log.Timber
+import timber.log.Timber.DebugTree
 import java.net.SocketTimeoutException
-import kotlin.math.log
+import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.*
+
 
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
+    lateinit var printBox: TextView
+
     @SuppressLint("LogNotTimber")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        class CrashReportingTree : Timber.Tree() {
+            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {}
+        }
+        Timber.plant(if (BuildConfig.DEBUG) DebugTree() else CrashReportingTree())
+
+        // 绑定视图
         val mBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(mBinding.root)
-        mBinding.printBox.text = stringFromJNI()
 
+        // 设置标题
+        mBinding.toolbar.title = "猫爪"
+        // 绑定文本框
+        printBox = mBinding.printBox
+        // 允许内容滚动
+        printBox.text = stringFromJNI()
+        printBox.movementMethod = ScrollingMovementMethod.getInstance()
+
+        // 绑定搜索事件
+        mBinding.search.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(newText: String?): Boolean {
+                if (newText != null) {
+                    queryActions(newText)
+                }
+                return false
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                return false
+            }
+        })
+
+        // 调用原生方法的示例
+        //findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
+    }
+
+    /**
+     * 由"native-lib"原生库实现的方法,该库随此应用程序一起打包
+     */
+    external fun stringFromJNI(): String
+
+    companion object {
+        // 用于在应用程序启动时加载"native-lib"库。
+        init {
+            System.loadLibrary("native-lib")
+        }
+    }
+
+    fun queryActions(searchKey: String) {
 
         // 简化Log调用
-        val logQJS = { msg: Any? -> Log.i("JsAPI", msg?.toString() ?: "null") }
+        val logQJS = { msg: Any -> Timber.tag("JsAPI").d(msg.toString()) }
 
         logQJS("测试开始")
 
@@ -43,43 +92,50 @@ class MainActivity : AppCompatActivity(),
 
         val console = object : JsToNativeInterface {
             fun log(msg: Any?) {
-                Log.i("QuickJS", msg?.toString() ?: "null")
+                Timber.tag("QuickJS").d(msg?.toString() ?: "null")
             }
         }
         JsValue.fromNativeObject(jsBridge, console).assignToGlobal("console")
         logQJS("console方法注入")
 
-        JsValue.fromNativeFunction1(jsBridge, logQJS).assignToGlobal("log")
-        logQJS("log函数载入")
-
         // 输出数据到UI
-        val jsPrint = { msg: String -> mBinding.printBox.post { mBinding.printBox.append("\n$msg") } }
+        var startTime: Long = System.currentTimeMillis()
+        val jsPrint = { msg: String ->
+            printBox.post {
+                val fmter = SimpleDateFormat("[mm:ss.SSS]", Locale.getDefault())
+                val msgx = "${fmter.format(Date(System.currentTimeMillis() - startTime))} $msg"
+                printBox.append("$msgx\n")
+                Timber.tag("QuickJS").i(msgx)
+            }
+        }
         JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
-        logQJS("print函数载入")
+        logQJS("print方法注入")
+
+        JsValue.fromNativeFunction2(jsBridge) { s: String, c: String? -> URLEncoder.encode(s, c?:"utf-8") }.assignToGlobal("UrlEncoder")
+        logQJS("UrlEncoder方法注入")
 
         // 模拟fetch请求
-        fun fetch(url: String, params: JsonObjectWrapper?): JsonObjectWrapper {
-            Timber.tag("okHttp").i(url)
+        fun fetch(url: String, params: JsonObjectWrapper?): String? {
+            Timber.i(url)
 
             var responseError: String? = null
             var responseCode: Int? = null
             var responseMsg: String? = null
             var responseText: String? = null
 
-            var request = Request.Builder().url(url)
             try {
+                var request = Request.Builder().url(url)
                 val paramMap = params?.toPayloadObject()
                 // 设置 user-agent
+                val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
                 val userAgent = paramMap?.getObject("headers")?.getString("user-agent")
-                if (userAgent != null) request =
-                    request.removeHeader("User-Agent").addHeader("User-Agent", userAgent)
+                request = request.removeHeader("User-Agent").addHeader("User-Agent", userAgent ?: defAgent)
                 // 设置 Referer
                 val referer = paramMap?.getString("Referer")
                 if (referer != null) request = request.addHeader("Referer", referer)
                 // 设置 content-type
                 val mediaType = MediaType.parse(
-                    paramMap?.getObject("headers")?.getString("content-type")
-                        ?: "application/json;charset=UTF-8"
+                    paramMap?.getObject("headers")?.getString("content-type") ?: "application/json;charset=UTF-8"
                 )
                 // 设置 body
                 val requestBody = RequestBody.create(mediaType, paramMap?.getString("body") ?: "");
@@ -103,19 +159,22 @@ class MainActivity : AppCompatActivity(),
                 Timber.tag("okHttp").i("XHR error ($url): $t")
                 responseError = t.message ?: "unknown XHR error"
             }
-            return JsonObjectWrapper(
-                "code" to responseCode,
-                "message" to responseMsg,
-                "text" to responseText,
-                "error" to responseError,
-            )
+            return responseText
+//            JsonObjectWrapper(
+//                "code" to responseCode,
+//                "message" to responseMsg,
+//                "text" to responseText,
+//                "error" to responseError,
+//            )
         }
         JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? -> fetch(url, params) }.assignToGlobal("fetch")
-        logQJS("fetch函数载入")
+        logQJS("fetch方法注入")
 
         JsoupToJS().binding(jsBridge, "jsoup")
-        logQJS("jsoup载入")
+        logQJS("jsoup方法注入")
 
+        printBox.text = ""
+        val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
         launch {
             logQJS("jsoup包装")
             val jsCode = """
@@ -135,24 +194,19 @@ class MainActivity : AppCompatActivity(),
                 $('#inner').before('<a>before</a>');
                 console.log(dom1.innerHTML());
             """.trimIndent()
-            jsBridge.evaluateAsync<Any>(jsCode).await()
-            jsBridge.evaluateNoRetVal("jsoup.dispose()")
-            logQJS("测试结束")
+            //jsBridge.evaluateAsync<Any>(jsCode).await()
+            //jsBridge.evaluateAsync<Any>("jsoup.dispose()").await()
 
-            // 调用原生方法的示例
-            //findViewById<TextView>(R.id.sample_text).text = (stringFromJNI())
-        }
-    }
-
-    /**
-     * 由"native-lib"原生库实现的方法,该库随此应用程序一起打包
-     */
-    external fun stringFromJNI(): String
-
-    companion object {
-        // 用于在应用程序启动时加载"native-lib"库。
-        init {
-            System.loadLibrary("native-lib")
+            startTime = System.currentTimeMillis()
+            jsPrint("载入JS数据")
+            jsBridge.evaluateAsync<Any>(js).await()
+            jsPrint("数据载入完成")
+            val stepCount: Int = jsBridge.evaluate("parseInt(step.length)")
+            jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
+            for (index in 1 until stepCount) {
+                jsBridge.evaluateAsync<Any>("step[$index]()").await()
+            }
+            jsPrint("所有任务完成")
         }
     }
 }

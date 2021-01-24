@@ -4,6 +4,10 @@ plugins {
     id 'kotlin-parcelize'
 }
 
+def buildTick = System.currentTimeMillis()
+def vCode = buildTick.intValue()
+def vName = new Date(buildTick).format("yy.MMdd.HHmm", TimeZone.getTimeZone("GMT+8"))
+
 android {
     compileSdkVersion 30
     buildToolsVersion "30.0.3"
@@ -12,8 +16,8 @@ android {
         applicationId "com.antecer.nekopaw"
         minSdkVersion 22
         targetSdkVersion 30
-        versionCode 1
-        versionName "1.0"
+        versionCode vCode
+        versionName vName
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
@@ -30,8 +34,7 @@ android {
         }
         android.applicationVariants.all { variant ->
             variant.outputs.all {
-                def buildTime = new Date().format("yy.MMdd.HHmm", TimeZone.getTimeZone("GMT+8"))
-                outputFileName = "NekoPaw_${buildTime}.apk"
+                outputFileName = "NekoPaw_${vName}.apk"
             }
         }
     }
