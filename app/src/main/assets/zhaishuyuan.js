@@ -1,4 +1,4 @@
-// 需要传递到外部的数据
+// 需要传递到外部的数据(必要)
 var baseObject = {
 	info: {
 		site: '源名称',
@@ -19,6 +19,8 @@ baseObject.info = {
 	site: '💮斋书苑',
 	group: '更新快;无错字'
 };
+// 判断详情页
+var isDetail = '';
 
 // 搜索页
 function search(searchKey) {
@@ -30,7 +32,7 @@ function search(searchKey) {
 		},
 		body: `key=${UrlEncoder(searchKey, 'gbk')}`
 	});
-	let html = response; //.text;
+	let html = response.text();
 	let document = new Document(html);
 	print('成功获取结果');
 
@@ -38,6 +40,12 @@ function search(searchKey) {
 	let searchList = document.querySelectorAll('#sitembox dl');
 	let titleList = searchList.queryAllText('h3>a');
 	print(`解析到 ${titleList.length} 个结果`);
+	if (titleList.length == 0) {
+		isDetail = document;
+		baseObject.search.push({});
+		print(`尝试作为详情页解析`);
+		return;
+	}
 	let authorList = searchList.queryAllText('span:nth-child(1)');
 	let introList = searchList.queryAllText('.book_des');
 	let tagList = searchList.queryAllText('span:nth-child(3)');
@@ -62,11 +70,14 @@ function search(searchKey) {
 }
 
 function detail(url) {
-	print(`\n\n开始获取详情页 ${url}`);
-	let response = fetch(url);
-	let html = response; //.text;
-	let document = new Document(html);
-	print('成功获取结果');
+	let document = isDetail;
+	if (!document) {
+		print(`开始获取详情页 ${url}`);
+		let response = fetch(url);
+		let html = response.text();
+		document = new Document(html);
+		print('成功获取结果');
+	}
 
 	baseObject.detail = {
 		title: document.queryAttr('[property="og:novel:book_name"]', 'content'),
@@ -83,9 +94,9 @@ function detail(url) {
 }
 
 function chapter(url) {
-	print(`\n\n开始获取目录页 ${url}`);
+	print(`开始获取目录页 ${url}`);
 	let response = fetch(url);
-	let html = response; //.text;
+	let html = response.text();
 	let document = new Document(html);
 	print('成功获取结果');
 
@@ -97,23 +108,20 @@ function chapter(url) {
 	});
 	let hider = html.match(/查看隐藏章节[^<]+/);
 	if (hider) {
+		print('开始获取隐藏章节');
 		let p = Math.ceil(hider[0].match(/\d+/)[0] / 900);
 		for (let i = 1; i <= p; ++i) {
-			Array.prototype.push.apply(
-				baseObject.chapter,
-				JSON.parse(
-					fetch(`https://www.zhaishuyuan.com/api/`, {
-						method: 'POST',
-						headers: {
-							'content-type': 'application/x-www-form-urlencoded'
-						},
-						body: `action=list&bid=${bid}&page${i}`
-					}).text
-				)
-			);
+			let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
+				method: 'POST',
+				headers: {
+					'content-type': 'application/x-www-form-urlencoded'
+				},
+				body: `action=list&bid=${bid}&page${i}`
+			}).json();
+			if (bArr) Array.prototype.push.apply(baseObject.chapter, bArr.data);
 		}
+		print('成功获取隐藏章节');
 	}
-	print('成功获取隐藏章节');
 	baseObject.chapter = baseObject.chapter
 		.sort((a, b) => (a.id < b.id ? -1 : 1))
 		.map((item) => {
@@ -125,9 +133,9 @@ function chapter(url) {
 }
 
 function context(url) {
-	print(`\n\n开始获取正文页 ${url}`);
+	print(`开始获取正文页 ${url}`);
 	let response = fetch(url);
-	let html = response; //.text;
+	let html = response.text();
 	let document = new Document(html);
 	print('成功获取结果');
 
@@ -143,9 +151,4 @@ function context(url) {
 	print(baseObject.context);
 }
 
-step = [
-	(sKey) => search(sKey),
-	() => detail(baseObject.info.origin + baseObject.search[0].url),
-	() => chapter(baseObject.detail.url),
-	() => context(baseObject.info.origin + baseObject.chapter[0].url)
-];
+step = [(sKey) => search(sKey), () => detail(baseObject.info.origin + baseObject.search[0].url), () => chapter(baseObject.detail.url), () => context(baseObject.info.origin + baseObject.chapter[0].url)];

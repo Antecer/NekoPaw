@@ -8,6 +8,7 @@ import android.widget.SearchView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.api.JsoupToJS
+import com.antecer.nekopaw.api.OkHttpToJS
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import de.prosiebensat1digital.oasisjsbridge.*
 import kotlinx.coroutines.CoroutineScope
@@ -111,102 +112,34 @@ class MainActivity : AppCompatActivity(),
         JsValue.fromNativeFunction1(jsBridge, jsPrint).assignToGlobal("print")
         logQJS("print方法注入")
 
-        JsValue.fromNativeFunction2(jsBridge) { s: String, c: String? -> URLEncoder.encode(s, c?:"utf-8") }.assignToGlobal("UrlEncoder")
+        JsValue.fromNativeFunction2(jsBridge) { s: String, c: String? -> URLEncoder.encode(s, c ?: "utf-8") }.assignToGlobal("UrlEncoder")
         logQJS("UrlEncoder方法注入")
-
-        // 模拟fetch请求
-        fun fetch(url: String, params: JsonObjectWrapper?): String? {
-            Timber.i(url)
-
-            var responseError: String? = null
-            var responseCode: Int? = null
-            var responseMsg: String? = null
-            var responseText: String? = null
-
-            try {
-                var request = Request.Builder().url(url)
-                val paramMap = params?.toPayloadObject()
-                // 设置 user-agent
-                val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
-                val userAgent = paramMap?.getObject("headers")?.getString("user-agent")
-                request = request.removeHeader("User-Agent").addHeader("User-Agent", userAgent ?: defAgent)
-                // 设置 Referer
-                val referer = paramMap?.getString("Referer")
-                if (referer != null) request = request.addHeader("Referer", referer)
-                // 设置 content-type
-                val mediaType = MediaType.parse(
-                    paramMap?.getObject("headers")?.getString("content-type") ?: "application/json;charset=UTF-8"
-                )
-                // 设置 body
-                val requestBody = RequestBody.create(mediaType, paramMap?.getString("body") ?: "");
-                // 设置 method(请求模式)
-                val method = paramMap?.getString("method") ?: "GET"
-                request = if (method == "GET") request.get() else request.post(requestBody)
-                // 发送请求
-                val response = OkHttpClient().newCall(request.build()).execute()
-
-                responseCode = response.code()
-                responseMsg = response.message()
-                responseText = response.body()?.string()
-
-                Timber.tag("okHttp").i("Successfully fetched response (query: $url)")
-                Timber.tag("okHttp").i("-> responseCode = $responseCode")
-                Timber.tag("okHttp").i("-> responseMsg = $responseMsg")
-            } catch (e: SocketTimeoutException) {
-                Timber.tag("okHttp").i("XHR timeout ($url): $e")
-                responseError = "timeout"
-            } catch (t: Throwable) {
-                Timber.tag("okHttp").i("XHR error ($url): $t")
-                responseError = t.message ?: "unknown XHR error"
-            }
-            return responseText
-//            JsonObjectWrapper(
-//                "code" to responseCode,
-//                "message" to responseMsg,
-//                "text" to responseText,
-//                "error" to responseError,
-//            )
-        }
-        JsValue.fromNativeFunction2(jsBridge) { url: String, params: JsonObjectWrapper? -> fetch(url, params) }.assignToGlobal("fetch")
-        logQJS("fetch方法注入")
-
-        JsoupToJS().binding(jsBridge, "jsoup")
-        logQJS("jsoup方法注入")
 
         printBox.text = ""
         val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
         launch {
-            logQJS("jsoup包装")
-            val jsCode = """
-                var dom1 = new Document('<div id="outer">outer content<p id="inner">inner content</p></div>');
-                var d1 = dom1.getElementById("outer").querySelector("#inner").outerHTML();
-                var d2 = dom1.outerHTML();
-                console.log(d1)
-                console.log(d2)
-                var dom2 = new Document('<p>546</p>');
-                console.log(dom2.text());
-                var $ = (s)=> dom1.querySelector(s);
-                console.log($('#outer').innerHTML());
-                var arr = new Document('<div><a>1</a><a>2</a><a>3</a></div>');
-                arr.querySelector('a').remove();
-                console.log(JSON.stringify(arr.queryAllText('a')));
-                console.log(JSON.stringify(arr.querySelectorAll('a').text()));
-                $('#inner').before('<a>before</a>');
-                console.log(dom1.innerHTML());
-            """.trimIndent()
-            //jsBridge.evaluateAsync<Any>(jsCode).await()
-            //jsBridge.evaluateAsync<Any>("jsoup.dispose()").await()
-
-            startTime = System.currentTimeMillis()
-            jsPrint("载入JS数据")
-            jsBridge.evaluateAsync<Any>(js).await()
-            jsPrint("数据载入完成")
-            val stepCount: Int = jsBridge.evaluate("parseInt(step.length)")
-            jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
-            for (index in 1 until stepCount) {
-                jsBridge.evaluateAsync<Any>("step[$index]()").await()
+            try {
+                OkHttpToJS().binding(jsBridge, "fetch")
+                logQJS("OkHttp方法注入为fetch")
+                JsoupToJS().binding(jsBridge, "jsoup")
+                logQJS("jsoup方法注入")
+                startTime = System.currentTimeMillis()
+                jsPrint("载入JS数据")
+                jsBridge.evaluateAsync<Any>(js).await()
+                jsPrint("数据载入完成")
+                val stepCount: Int = jsBridge.evaluate("parseInt(step.length)")
+                jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
+                for (index in 1 until stepCount) {
+                    jsPrint("")
+                    jsPrint("")
+                    jsBridge.evaluateAsync<Any>("step[$index]()").await()
+                }
+                jsPrint("所有任务完成")
+            } catch (err: Exception) {
+                err.printStackTrace()
+                Timber.tag("QuickJS").e("[ERROR] $err")
+                jsPrint("[ERROR] $err")
             }
-            jsPrint("所有任务完成")
         }
     }
 }
