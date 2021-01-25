@@ -45,7 +45,7 @@ function search(searchKey) {
 		baseObject.search.push({});
 		console.info(`尝试作为详情页解析`);
 		return;
-	}
+	} else isDetail = '';
 	let authorList = searchList.queryAllText('span:nth-child(1)');
 	let introList = searchList.queryAllText('.book_des');
 	let tagList = searchList.queryAllText('span:nth-child(3)');
@@ -66,7 +66,7 @@ function search(searchKey) {
 		});
 	}
 	console.info(JSON.stringify(baseObject.search[0]));
-	console.info(`搜索页解析完成`);
+	console.info(`搜索页解析完成\n\n`);
 }
 
 function detail(url) {
@@ -90,7 +90,7 @@ function detail(url) {
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
 	console.info(`详情页解析完成`);
-	console.info(JSON.stringify(baseObject.detail));
+	console.info(JSON.stringify(baseObject.detail)+`\n\n`);
 }
 
 function chapter(url) {
@@ -129,7 +129,7 @@ function chapter(url) {
 			return { title: item.cN, time: item.uT, url: item.id };
 		});
 	console.info(`目录页解析完成,共 ${baseObject.chapter.length} 章`);
-	console.info(`第一章: ${JSON.stringify(baseObject.chapter[0])}`);
+	console.info(`第一章: ${JSON.stringify(baseObject.chapter[0])}\n\n`);
 }
 
 function context(url) {
