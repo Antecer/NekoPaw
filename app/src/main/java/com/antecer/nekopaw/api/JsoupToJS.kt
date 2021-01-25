@@ -12,13 +12,19 @@ import org.jsoup.select.Elements
 /**
  * 连接Jsoup和QuickJS(JsBridge)
  */
-class JsoupToJS {
+class JsoupToJS private constructor() {
+    companion object {
+        val instance: JsoupToJS by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
+            JsoupToJS()
+        }
+    }
+
     /**
      * 绑定到JsBridge对象
      * @param jsBridge 目标对象名称
      * @param name 注入到js内的名称
      */
-    fun binding(jsBridge: JsBridge, name: String = "jsoup") {
+    fun binding(jsBridge: JsBridge, apiName: String = "Document") {
         val jsoupKtApi = object : JsToNativeInterface {
             val aMap = mutableMapOf<String, Document>()
             val bMap = mutableMapOf<String, Element>()
@@ -192,41 +198,40 @@ class JsoupToJS {
                 cMap.clear()
             }
         }
-        JsValue.fromNativeObject(jsBridge, jsoupKtApi).assignToGlobal(name)
+        JsValue.fromNativeObject(jsBridge, jsoupKtApi).assignToGlobal("GlobalJsoup")
 
-        val jsoupAPI = """
-class Document {
-	#mark;
-	constructor(html, mark) { this.#mark = html ? jsoup.parse(html) : mark; }
-	querySelector(trait) { return new Document(null, jsoup.querySelector(trait, this.#mark)); }
-	querySelectorAll(trait) { return new Document(null, jsoup.querySelectorAll(trait, this.#mark)); }
-	getElementById(trait) { return new Document(null, jsoup.getElementById(trait, this.#mark)); }
-	getElementByTag(trait) { return new Document(null, jsoup.getElementByTag(trait, this.#mark)); }
-	getElementByClass(trait) { return new Document(null, jsoup.getElementByClass(trait, this.#mark)); }
-	outerHTML() { return jsoup.outerHtml(this.#mark); }
-	innerHTML(html) { return jsoup.innerHTML(this.#mark, html||null); }
-	innerText(text) { return jsoup.innerText(this.#mark, text||null); }
-
-    // jsoup自有方法
-    selectFirst(trait) { return new Document(null, jsoup.querySelector(trait, this.#mark)); }
-    select(trait) { return new Document(null, jsoup.querySelectorAll(trait, this.#mark)); }
-    html(s) { return jsoup.innerHTML(this.#mark, s||null); }
-    text(s) { return jsoup.innerText(this.#mark, s||null); }
-    remove() { jsoup.remove(this.#mark); }
-    before(html) { jsoup.before(this.#mark, html); }
-    
-    // 自定义方法
-    queryRemove(trait) { jsoup.queryRemove(this.#mark, trait) }
-    queryBefore(trait, html) { jsoup.queryRemove(this.#mark, trait, html) }
-    queryText(trait) { return jsoup.queryText(trait, this.#mark); }
-    queryAllText(trait) { return jsoup.queryAllText(trait, this.#mark); }
-    queryAttr(trait, attr) { return jsoup.queryAttr(trait, attr, this.#mark); }
-    queryAllAttr(trait, attr) { return jsoup.queryAllAttr(trait, attr, this.#mark); }
-    dispose() { jsoup.dispose(); }
-}
-            """.trimIndent()
-        runBlocking {
-            jsBridge.evaluateAsync<Any>(jsoupAPI).await()
-        }
+        val jsAPI = """
+            class $apiName {
+                #mark;
+                constructor(html, mark) { this.#mark = html ? GlobalJsoup.parse(html) : mark; }
+                querySelector(trait) { return new Document(null, GlobalJsoup.querySelector(trait, this.#mark)); }
+                querySelectorAll(trait) { return new Document(null, GlobalJsoup.querySelectorAll(trait, this.#mark)); }
+                getElementById(trait) { return new Document(null, GlobalJsoup.getElementById(trait, this.#mark)); }
+                getElementByTag(trait) { return new Document(null, GlobalJsoup.getElementByTag(trait, this.#mark)); }
+                getElementByClass(trait) { return new Document(null, GlobalJsoup.getElementByClass(trait, this.#mark)); }
+                outerHTML() { return GlobalJsoup.outerHtml(this.#mark); }
+                innerHTML(html) { return GlobalJsoup.innerHTML(this.#mark, html||null); }
+                innerText(text) { return GlobalJsoup.innerText(this.#mark, text||null); }
+            
+                // jsoup自有方法
+                selectFirst(trait) { return new Document(null, GlobalJsoup.querySelector(trait, this.#mark)); }
+                select(trait) { return new Document(null, GlobalJsoup.querySelectorAll(trait, this.#mark)); }
+                html(s) { return GlobalJsoup.innerHTML(this.#mark, s||null); }
+                text(s) { return GlobalJsoup.innerText(this.#mark, s||null); }
+                remove() { GlobalJsoup.remove(this.#mark); }
+                before(html) { GlobalJsoup.before(this.#mark, html); }
+                
+                // 自定义方法
+                queryRemove(trait) { GlobalJsoup.queryRemove(this.#mark, trait) }
+                queryBefore(trait, html) { GlobalJsoup.queryRemove(this.#mark, trait, html) }
+                queryText(trait) { return GlobalJsoup.queryText(trait, this.#mark); }
+                queryAllText(trait) { return GlobalJsoup.queryAllText(trait, this.#mark); }
+                queryAttr(trait, attr) { return GlobalJsoup.queryAttr(trait, attr, this.#mark); }
+                queryAllAttr(trait, attr) { return GlobalJsoup.queryAllAttr(trait, attr, this.#mark); }
+                dispose() { GlobalJsoup.dispose(); }
+            }
+            console.debug('Jsoup 方法已注入为 $apiName');
+        """.trimIndent()
+        jsBridge.evaluateBlocking<Any>(jsAPI)
     }
 }

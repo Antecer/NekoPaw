@@ -2,6 +2,7 @@ plugins {
     id 'com.android.application'
     id 'kotlin-android'
     id 'kotlin-parcelize'
+    id 'kotlin-kapt'
 }
 
 def buildTick = System.currentTimeMillis()
@@ -68,10 +69,14 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    // Oasis JsBridge (QuickJS flavor) 内置ok http引用
+    // Oasis JsBridge (QuickJS flavor) 内置OkHttp引用
     implementation "de.prosiebensat1digital.oasis-jsbridge-android:oasis-jsbridge-quickjs:0.14.2"
     // Jsoup
     implementation 'org.jsoup:jsoup:1.13.1'
     implementation 'cn.wanghaomiao:JsoupXpath:2.3.2'
     implementation 'com.jayway.jsonpath:json-path:2.5.0'
+    // RxHttp
+//    implementation 'com.squareup.okhttp3:okhttp:4.9.0'
+//    implementation 'com.ljx.rxhttp:rxhttp:2.5.4'
+//    kapt 'com.ljx.rxhttp:rxhttp-compiler:2.5.4'
 }

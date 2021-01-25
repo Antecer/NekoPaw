@@ -24,7 +24,7 @@ var isDetail = '';
 
 // 搜索页
 function search(searchKey) {
-	print(`开始搜索关键字 ${searchKey}`);
+	console.info(`开始搜索关键字 ${searchKey}`);
 	let response = fetch(`${baseObject.info.origin}/search/`, {
 		method: 'POST',
 		headers: {
@@ -34,16 +34,16 @@ function search(searchKey) {
 	});
 	let html = response.text();
 	let document = new Document(html);
-	print('成功获取结果');
+	console.info('成功获取结果');
 
 	baseObject.search = [];
 	let searchList = document.querySelectorAll('#sitembox dl');
 	let titleList = searchList.queryAllText('h3>a');
-	print(`解析到 ${titleList.length} 个结果`);
+	console.info(`解析到 ${titleList.length} 个结果`);
 	if (titleList.length == 0) {
 		isDetail = document;
 		baseObject.search.push({});
-		print(`尝试作为详情页解析`);
+		console.info(`尝试作为详情页解析`);
 		return;
 	}
 	let authorList = searchList.queryAllText('span:nth-child(1)');
@@ -65,18 +65,18 @@ function search(searchKey) {
 			url: urlList[i]
 		});
 	}
-	print(JSON.stringify(baseObject.search[0]));
-	print(`搜索页解析完成`);
+	console.info(JSON.stringify(baseObject.search[0]));
+	console.info(`搜索页解析完成`);
 }
 
 function detail(url) {
 	let document = isDetail;
 	if (!document) {
-		print(`开始获取详情页 ${url}`);
+		console.info(`开始获取详情页 ${url}`);
 		let response = fetch(url);
 		let html = response.text();
 		document = new Document(html);
-		print('成功获取结果');
+		console.info('成功获取结果');
 	}
 
 	baseObject.detail = {
@@ -89,16 +89,16 @@ function detail(url) {
 		date: document.queryAttr('[property="og:novel:update_time"]', 'content'),
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
-	print(`详情页解析完成`);
-	print(JSON.stringify(baseObject.detail));
+	console.info(`详情页解析完成`);
+	console.info(JSON.stringify(baseObject.detail));
 }
 
 function chapter(url) {
-	print(`开始获取目录页 ${url}`);
+	console.info(`开始获取目录页 ${url}`);
 	let response = fetch(url);
 	let html = response.text();
 	let document = new Document(html);
-	print('成功获取结果');
+	console.info('成功获取结果');
 
 	let bid = parseInt(html.match(/data-bid="(\d+)/)[1]);
 	let reg = 'href="/chapter/[^/]+/([^"]+)[^>]+>([^<]+)[^>]+>([^<]+)';
@@ -108,7 +108,7 @@ function chapter(url) {
 	});
 	let hider = html.match(/查看隐藏章节[^<]+/);
 	if (hider) {
-		print('开始获取隐藏章节');
+		console.info('开始获取隐藏章节');
 		let p = Math.ceil(hider[0].match(/\d+/)[0] / 900);
 		for (let i = 1; i <= p; ++i) {
 			let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
@@ -120,7 +120,7 @@ function chapter(url) {
 			}).json();
 			if (bArr) Array.prototype.push.apply(baseObject.chapter, bArr.data);
 		}
-		print('成功获取隐藏章节');
+		console.info('成功获取隐藏章节');
 	}
 	baseObject.chapter = baseObject.chapter
 		.sort((a, b) => (a.id < b.id ? -1 : 1))
@@ -128,27 +128,27 @@ function chapter(url) {
 			item.id = '/chapter/' + bid + '/' + (item.id - bid);
 			return { title: item.cN, time: item.uT, url: item.id };
 		});
-	print(`目录页解析完成,共 ${baseObject.chapter.length} 章`);
-	print(`第一章: ${JSON.stringify(baseObject.chapter[0])}`);
+	console.info(`目录页解析完成,共 ${baseObject.chapter.length} 章`);
+	console.info(`第一章: ${JSON.stringify(baseObject.chapter[0])}`);
 }
 
 function context(url) {
-	print(`开始获取正文页 ${url}`);
+	console.info(`开始获取正文页 ${url}`);
 	let response = fetch(url);
 	let html = response.text();
 	let document = new Document(html);
-	print('成功获取结果');
+	console.info('成功获取结果');
 
 	$ = (s) => document.select(s);
 	let f = html.match(/function getDecode[^<]+/);
 	if (f) {
 		eval(f[0]);
 		getDecode();
-		print('成功解密内容');
+		console.info('成功解密内容');
 	}
 	baseObject.context = document.queryAllText('#content p').join(`\n　　`);
-	print('正文解析完成');
-	print(baseObject.context);
+	console.info('正文解析完成');
+	console.info(baseObject.context);
 }
 
 step = [(sKey) => search(sKey), () => detail(baseObject.info.origin + baseObject.search[0].url), () => chapter(baseObject.detail.url), () => context(baseObject.info.origin + baseObject.chapter[0].url)];

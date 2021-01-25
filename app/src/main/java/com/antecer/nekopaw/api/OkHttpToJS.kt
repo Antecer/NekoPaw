@@ -1,21 +1,33 @@
 package com.antecer.nekopaw.api
 
 import de.prosiebensat1digital.oasisjsbridge.*
-import kotlinx.coroutines.runBlocking
 import okhttp3.*
 import timber.log.Timber
 import java.net.SocketTimeoutException
+import java.util.*
 
 /**
  * 连接Jsoup和QuickJS(JsBridge)
  */
-class OkHttpToJS {
+class OkHttpToJS private constructor() {
+    companion object {
+        val instance: OkHttpToJS by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
+            OkHttpToJS()
+        }
+    }
+
+    // 创建OkHttp对象
+    val client: OkHttpClient = OkHttpClient()
+
     /**
      * 绑定到JsBridge对象
      * @param jsBridge 目标对象名称
      * @param name 注入到js内的名称
      */
     fun binding(jsBridge: JsBridge, apiName: String = "fetch") {
+        // 修改okHttp并发数
+        client.dispatcher().maxRequestsPerHost = 10
+        Timber.tag("OkHttp").d("-> OkHttp 注入 JsEngine")
         val okHttpKtApi = object : JsToNativeInterface {
             var status: Int? = null
             var statusText: String? = null
@@ -45,27 +57,26 @@ class OkHttpToJS {
                         paramMap?.getObject("headers")?.getString("content-type") ?: "application/json;charset=UTF-8"
                     )
                     // 设置 body
-                    val requestBody = RequestBody.create(mediaType, paramMap?.getString("body") ?: "");
+                    val sendData = paramMap?.getString("body") ?: ""
+                    val requestBody = RequestBody.create(mediaType, sendData);
                     // 设置 method(请求模式)
-                    val method = paramMap?.getString("method") ?: "GET"
+                    val method = (paramMap?.getString("method") ?: "GET").toUpperCase(Locale.ROOT)
                     request = if (method == "GET") request.get() else request.post(requestBody)
                     // 发送请求
-                    val response = OkHttpClient().newCall(request.build()).execute()
+                    val response = client.newCall(request.build()).execute()
 
                     this.status = response.code()
                     this.statusText = response.message()
                     this.text = response.body()?.string()
                     this.success = "ok"
 
-                    Timber.tag("okHttp").d("-> url: $url")
-                    Timber.tag("okHttp").d("-> status: ${this.status}")
-                    Timber.tag("okHttp").d("-> statusText: ${this.statusText}")
+                    Timber.tag("OkHttp").d("[Success] $method: $url?$sendData")
                 } catch (e: SocketTimeoutException) {
-                    Timber.tag("okHttp").w("-> timeout ($url): $e")
+                    Timber.tag("OkHttp").w("[TimeOut] ($url): $e")
                     this.error = "timeout"
                 } catch (t: Throwable) {
                     t.printStackTrace()
-                    Timber.tag("okHttp").e("[ERROR] ($url): $t")
+                    Timber.tag("OkHttp").e("[ERROR] ($url): $t")
                     this.error = t.message ?: "Fetch出现未知错误"
                 }
                 return JsonObjectWrapper(
@@ -81,29 +92,27 @@ class OkHttpToJS {
             }
         }
         JsValue.fromNativeObject(jsBridge, okHttpKtApi).assignToGlobal("GlobalOkHttp")
-        val okHttpJsAPI = """
-class GlobalFetch {
-	status;
-	statusText;
-	error;
-	success;
-	#body;
-	constructor(url, params) {
-		let Gres = GlobalOkHttp.fetch(url, params);
-		this.status = Gres.status;
-		this.statusText = Gres.statusText;
-		this.error = Gres.error;
-		this.success = Gres.success;
-		this.#body = GlobalOkHttp.text();
-	}
-	text() { return this.#body || ''; }
-	json() { return this.#body ? JSON.parse(this.#body) : ''; }
-}
-const $apiName = (url, params) => new GlobalFetch(url, params || null);
+        val jsAPI = """
+            class GlobalFetch {
+                status;
+                statusText;
+                error;
+                success;
+                #body;
+                constructor(url, params) {
+                    let Gres = GlobalOkHttp.fetch(url, params);
+                    this.status = Gres.status;
+                    this.statusText = Gres.statusText;
+                    this.error = Gres.error;
+                    this.success = Gres.success;
+                    this.#body = GlobalOkHttp.text();
+                }
+                text() { return this.#body || ''; }
+                json() { return this.#body ? JSON.parse(this.#body) : ''; }
+            }
+            const $apiName = (url, params) => new GlobalFetch(url, params || null);
+            console.debug('OkHttp 方法已注入为 $apiName');
         """.trimIndent()
-        runBlocking {
-            jsBridge.evaluateAsync<Any>(okHttpJsAPI).await()
-        }
+        jsBridge.evaluateBlocking<Any>(jsAPI)
     }
-
 }
