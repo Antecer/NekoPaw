@@ -42,7 +42,7 @@ function search(searchKey) {
 	console.info(`解析到 ${titleList.length} 个结果`);
 	if (titleList.length == 0) {
 		isDetail = document;
-		baseObject.search.push({});
+		baseObject.search.push({url: response.finalUrl});
 		console.info(`尝试作为详情页解析`);
 		return;
 	} else isDetail = '';

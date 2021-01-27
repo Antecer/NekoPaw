@@ -10,7 +10,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- *建立JS引擎,并加载附加模块
+ *建立 JS 引擎,并加载附加模块
  */
 class JsEngine private constructor() {
     companion object {
@@ -19,7 +19,7 @@ class JsEngine private constructor() {
         }
     }
 
-    // JS引擎建立
+    // JS 引擎建立
     var jsBridge: JsBridge = JsBridge(JsBridgeConfig.bareConfig())
 
     // 绑定日志输出控件
@@ -67,15 +67,15 @@ class JsEngine private constructor() {
             """.trimIndent()
         )
 
-        // UrlEncoder 方法注入为 UrlEncoder
+        // UrlEncoder 方法注入为 UrlEncoder()
         JsValue.fromNativeFunction2(jsBridge) { source: String, charset: String? ->
             URLEncoder.encode(source, charset ?: "utf-8")
         }.assignToGlobal("UrlEncoder")
         jsBridge.evaluateBlocking<Any>("console.debug('URLEncoder 方法已注入为 UrlEncoder')")
 
-        // OkHttp 方法注入为 fetch
+        // OkHttp 方法注入为 fetch()
         OkHttpToJS.instance.binding(jsBridge, "fetch")
-        // Jsoup 方法注入为 Document
+        // Jsoup 方法注入为 class Document()
         JsoupToJS.instance.binding(jsBridge, "Document")
     }
 }
