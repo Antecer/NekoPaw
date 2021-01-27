@@ -42,7 +42,7 @@ function search(searchKey) {
 	console.info(`解析到 ${titleList.length} 个结果`);
 	if (titleList.length == 0) {
 		isDetail = document;
-		baseObject.search.push({url: response.finalUrl});
+		baseObject.search.push({ url: response.finalUrl });
 		console.info(`尝试作为详情页解析`);
 		return;
 	} else isDetail = '';
@@ -112,16 +112,44 @@ function chapter(url) {
 	if (hider) {
 		let p = Math.ceil(hider[0].match(/\d+/)[0] / 900);
 		console.info(`开始获取隐藏章节,共 ${p} 页`);
-		let bodyList = [];
-		for (let i = 1; i <= p; ++i) bodyList.push(`action=list&bid=${bid}&page=${i}`)
-		let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
-        	method: 'POST',
-        	headers: {
-        		'content-type': 'application/x-www-form-urlencoded'
-        	},
-        	bodys: bodyList
-        }).json();
-        bArr.forEach(b=> Array.prototype.push.apply(baseObject.chapter, b.data));
+		// 顺序请求
+		// let bodyList = [];
+		// for (let i = 1; i <= p; ++i) bodyList.push(`action=list&bid=${bid}&page=${i}`);
+		// let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
+		// 	method: 'POST',
+		// 	headers: {
+		// 		'content-type': 'application/x-www-form-urlencoded'
+		// 	},
+		// 	bodys: bodyList
+		// }).json();
+		// bArr.forEach((b) => Array.prototype.push.apply(baseObject.chapter, b.data));
+		// 并发请求
+		let fetchList = [];
+		for (let i = 1; i <= p; ++i) {
+			fetchList.push([
+				`https://www.zhaishuyuan.com/api/`,
+				{
+					method: 'POST',
+					headers: { 'content-type': 'application/x-www-form-urlencoded' },
+					body: `action=list&bid=${bid}&page=${i}`
+				}
+			]);
+		}
+		let retryCount = 5; // 并发有可能失败,然后需要重试
+		while (fetchList.length > 0 && --retryCount) {
+			let bArr = GlobalOkHttp.fetchAll(fetchList);
+			let retryList = [];
+			if(!bArr) continue;
+			JSON.parse(bArr).forEach((b) => {
+				if (b.startsWith('fail')) {
+					retryList.push(fetchList[b.split('|')[1]]);
+				} else {
+					Array.prototype.push.apply(baseObject.chapter, JSON.parse(b).data);
+				}
+			});
+			fetchList = [].concat(retryList);
+		}
+
 		console.info('成功获取隐藏章节');
 	}
 	baseObject.chapter = baseObject.chapter

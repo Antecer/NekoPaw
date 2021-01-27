@@ -1,5 +1,6 @@
 package com.antecer.nekopaw.api
 
+import android.os.SystemClock.sleep
 import de.prosiebensat1digital.oasisjsbridge.*
 import okhttp3.*
 import org.json.JSONArray
@@ -121,34 +122,97 @@ class OkHttpToJS private constructor() {
             return json.toString()
         }
 
-        // 并发网络请求 (待编写)
-        fun fetchAll(actions: JsonObjectWrapper): String {
-            var status = ""
-            var statusText = ""
-            var error = ""
-            var success = ""
-            val failList = ArrayList<String>()  // 保存请求失败的 url
-            val textList = ArrayList<String>()  // 保存请求成功的 response.body().string()
+        // 并发网络请求(待完成)
+        fun fetchAll(actions: JsonObjectWrapper): String? {
+            val urlList = ArrayList<String>()
+            val methodList = ArrayList<String>()
+            val headersList = ArrayList<Headers>()
+            val mediaTypeList = ArrayList<MediaType>()
+            val sendBodyList = ArrayList<String>()
+            val readParams = { work: JSONArray ->
+                val url = work.getString(0)
+                val params = work.optJSONObject(1)
+                // 设置请求模式
+                var method = "GET"
+                // 设置默认 User-Agent
+                val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
+                // 创建请求头构造器
+                val headersBuilder = Headers.Builder().add("user-agent", defAgent)
+                // 设置请求类型
+                var mediaType = "application/x-www-form-urlencoded"
+                // 创建请求体
+                var sendBody = ""
+                if (params != null) {
+                    for (key in params.keys()) {
+                        when (key.toLowerCase(Locale.ROOT)) {
+                            "method" -> method = params.optString(key, method)
+                            "body" -> sendBody = params.optString(key, sendBody)
+                            "headers" -> {
+                                val headers = params.getJSONObject(key)
+                                for (head in headers.keys()) {
+                                    when (head.toLowerCase(Locale.ROOT)) {
+                                        "content-type" -> mediaType = headers.optString(head, mediaType)
+                                        "user-agent" -> headersBuilder.removeAll(head).add(head.toLowerCase(Locale.ROOT), headers.optString(head))
+                                        else -> headersBuilder.add(head.toLowerCase(Locale.ROOT), headers.optString(head))
+                                    }
+                                }
+                            }
+                            else -> headersBuilder.add(key.toLowerCase(Locale.ROOT), params.optString(key))
+                        }
+                    }
+                }
+                // 保存取得的值
+                urlList.add(url)
+                methodList.add(method)
+                headersList.add(headersBuilder.build())
+                mediaTypeList.add(MediaType.get(mediaType))
+                sendBodyList.add(sendBody)
+            }
+
             try {
                 val actionArr = JSONArray(actions.jsonString)
+                var actionCount = actionArr.length()
+                val actionsText = Array(actionCount) { "" }
+
                 for (i in 0 until actionArr.length()) {
-                    val action = actionArr.getJSONArray(i)
-                    val url = action.getString(0)
-                    val params = action.getJSONObject(1)
+                    readParams(actionArr.optJSONArray(i))
+                    val requestBuilder = Request.Builder()
+                    when (methodList[i]) {
+                        "POST" -> requestBuilder.url(urlList[i]).post(RequestBody.create(mediaTypeList[i], sendBodyList[i]))
+                        else -> requestBuilder.url(urlList[i] + '?' + sendBodyList[i]).get()
+                    }
+                    // 发起异步网络请求
+                    client.newCall(requestBuilder.build()).enqueue(object : Callback {
+                        override fun onResponse(call: Call, response: Response) {
+                            val resCode = response.code();
+                            actionsText[i] = if (resCode == 200) {
+                                response.body()?.string()!!
+                            } else {
+                                "fail|$i"
+                            }
+                            --actionCount;
+                            val request = response.request()
+                            Timber.tag("OkHttpAsync").i("[Success] ${request.url()}?${sendBodyList[i]}")
+                        }
+
+                        override fun onFailure(call: Call, e: IOException) {
+                            actionsText[i] = "fail,error=$e"
+                            --actionCount;
+                            Timber.tag("OkHttpAsync").i("[Failed] $e")
+                        }
+                    })
                 }
-
-
-                client.newCall(Request.Builder().url("https://www.baidu.com").get().build()).enqueue(object : Callback {
-                    override fun onResponse(call: Call, response: Response) {}
-                    override fun onFailure(call: Call, e: IOException) {}
-                })
-
-
+                // 等待网络请求完成
+                while (actionCount > 0) sleep(100)
+                val resultJSON = JSONArray()
+                actionsText.forEach { t-> resultJSON.put(t)}
+                val resultStr = resultJSON.toString()
+                return resultStr
             } catch (t: Throwable) {
                 t.printStackTrace()
-                Timber.tag("OkHttp").e("[ERROR] $t")
+                Timber.tag("OkHttpAsync").e("[ERROR] $t")
             }
-            return ""
+            return null
         }
     }
 
