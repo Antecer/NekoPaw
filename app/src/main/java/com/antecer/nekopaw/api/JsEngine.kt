@@ -1,6 +1,6 @@
 package com.antecer.nekopaw.api
 
-import android.widget.TextView
+import android.widget.EditText
 import de.prosiebensat1digital.oasisjsbridge.JsBridge
 import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
 import de.prosiebensat1digital.oasisjsbridge.JsValue
@@ -9,6 +9,9 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ *建立JS引擎,并加载附加模块
+ */
 class JsEngine private constructor() {
     companion object {
         val instance: JsEngine by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -20,18 +23,20 @@ class JsEngine private constructor() {
     var jsBridge: JsBridge = JsBridge(JsBridgeConfig.bareConfig())
 
     // 绑定日志输出控件
-    private var LogView: TextView? = null
-    val setLogout = { T: TextView -> LogView = T }
-    val clearLogView = { LogView?.post { LogView!!.text = "" } }
+    private var logView: EditText? = null
+    val setLogout = { T: EditText -> logView = T }
+    val clearLogView = { logView?.let { it.post { it.text.clear() } } }
 
     // 打印日志到目标控件
     private var startTime: Long = 0
     val clearTimer = { startTime = System.currentTimeMillis() }
     private fun printToUI(T: Any) {
-        LogView?.post {
-            val converter = SimpleDateFormat("[mm:ss.SSS]", Locale.getDefault())
-            val msg = "${converter.format(Date(System.currentTimeMillis() - startTime))} $T"
-            LogView!!.append("$msg\n")
+        logView?.let {
+            it.post {
+                val converter = SimpleDateFormat("[mm:ss.SSS]", Locale.getDefault())
+                val msg = "${converter.format(Date(System.currentTimeMillis() - startTime))} $T"
+                it.text.appendLine(msg)
+            }
         }
     }
 

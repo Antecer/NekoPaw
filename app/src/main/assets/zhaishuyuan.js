@@ -66,9 +66,10 @@ function search(searchKey) {
 		});
 	}
 	console.info(JSON.stringify(baseObject.search[0]));
-	console.info(`搜索页解析完成\n\n`);
+	console.info(`搜索页解析完成\n`);
 }
 
+// 详情页
 function detail(url) {
 	let document = isDetail;
 	if (!document) {
@@ -90,9 +91,10 @@ function detail(url) {
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
 	console.info(`详情页解析完成`);
-	console.info(JSON.stringify(baseObject.detail)+`\n\n`);
+	console.info(JSON.stringify(baseObject.detail) + `\n`);
 }
 
+// 目录页
 function chapter(url) {
 	console.info(`开始获取目录页 ${url}`);
 	let response = fetch(url);
@@ -108,18 +110,18 @@ function chapter(url) {
 	});
 	let hider = html.match(/查看隐藏章节[^<]+/);
 	if (hider) {
-		console.info('开始获取隐藏章节');
 		let p = Math.ceil(hider[0].match(/\d+/)[0] / 900);
-		for (let i = 1; i <= p; ++i) {
-			let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/x-www-form-urlencoded'
-				},
-				body: `action=list&bid=${bid}&page${i}`
-			}).json();
-			if (bArr) Array.prototype.push.apply(baseObject.chapter, bArr.data);
-		}
+		console.info(`开始获取隐藏章节,共 ${p} 页`);
+		let bodyList = [];
+		for (let i = 1; i <= p; ++i) bodyList.push(`action=list&bid=${bid}&page=${i}`)
+		let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
+        	method: 'POST',
+        	headers: {
+        		'content-type': 'application/x-www-form-urlencoded'
+        	},
+        	bodys: bodyList
+        }).json();
+        bArr.forEach(b=> Array.prototype.push.apply(baseObject.chapter, b.data));
 		console.info('成功获取隐藏章节');
 	}
 	baseObject.chapter = baseObject.chapter
@@ -129,9 +131,10 @@ function chapter(url) {
 			return { title: item.cN, time: item.uT, url: item.id };
 		});
 	console.info(`目录页解析完成,共 ${baseObject.chapter.length} 章`);
-	console.info(`第一章: ${JSON.stringify(baseObject.chapter[0])}\n\n`);
+	console.info(`第一章: ${JSON.stringify(baseObject.chapter[0])}\n`);
 }
 
+// 正文页
 function context(url) {
 	console.info(`开始获取正文页 ${url}`);
 	let response = fetch(url);

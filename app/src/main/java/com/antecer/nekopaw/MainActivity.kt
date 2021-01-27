@@ -32,7 +32,7 @@ class MainActivity : AppCompatActivity(),
         // 设置标题
         mBinding.toolbar.title = "猫爪"
         // 调用原生方法的示例
-        mBinding.printBox.text = stringFromJNI()
+        mBinding.printBox.text.append(stringFromJNI())
         // 允许内容滚动
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
@@ -74,14 +74,13 @@ class MainActivity : AppCompatActivity(),
     fun queryActions(searchKey: String) {
         launch {
             try {
-                // 载入js数据
-                val jsBridge = JsEngine.instance.jsBridge
-                JsEngine.instance.clearLogView()
-                val stepCount: Int = jsBridge.evaluate("parseInt(step.length)")
-                JsEngine.instance.clearTimer()
-                jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
+                val jsEngine = JsEngine.instance
+                jsEngine.clearLogView()
+                val stepCount: Int = jsEngine.jsBridge.evaluate("parseInt(step.length)")
+                jsEngine.clearTimer()
+                jsEngine.jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
                 for (index in 1 until stepCount) {
-                    jsBridge.evaluateAsync<Any>("step[$index]()").await()
+                    jsEngine.jsBridge.evaluateAsync<Any>("step[$index]()").await()
                 }
                 Timber.tag("QuickJS").d("JS任务完成")
             } catch (err: Exception) {

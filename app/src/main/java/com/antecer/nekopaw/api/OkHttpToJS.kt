@@ -2,13 +2,17 @@ package com.antecer.nekopaw.api
 
 import de.prosiebensat1digital.oasisjsbridge.*
 import okhttp3.*
+import org.json.JSONArray
+import org.json.JSONObject
 import timber.log.Timber
 import java.net.SocketTimeoutException
 import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * 连接Jsoup和QuickJS(JsBridge)
  */
+@Suppress("unused")
 class OkHttpToJS private constructor() {
     companion object {
         val instance: OkHttpToJS by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
@@ -29,86 +33,120 @@ class OkHttpToJS private constructor() {
         client.dispatcher().maxRequestsPerHost = 10
         Timber.tag("OkHttp").d("-> OkHttp 注入 JsEngine")
         val okHttpKtApi = object : JsToNativeInterface {
-            var status: Int? = null
-            var statusText: String? = null
-            var error: String? = null
-            var text: String? = null
-            var success: String? = null
-
             // 模拟fetch请求
-            fun fetch(url: String, params: JsonObjectWrapper?): JsonObjectWrapper {
-                this.status = null
-                this.statusText = null
-                this.error = null
-                this.text = null
-                this.success = null
+            fun fetch(url: String, params: JsonObjectWrapper?): String {
+                var status = ""
+                var statusText = ""
+                var error = ""
+                var success = ""
+                val failList = ArrayList<String>()  // 保存请求失败的 url
+                val textList = ArrayList<String>()  // 保存请求成功的 response.body().string()
                 try {
-                    var request = Request.Builder().url(url)
+                    // 取得参数
                     val paramMap = params?.toPayloadObject()
-                    // 设置 user-agent
+                    // 设置请求模式
+                    var method = "GET"
+                    // 设置默认 User-Agent
                     val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
-                    val userAgent = paramMap?.getObject("headers")?.getString("user-agent")
-                    request = request.removeHeader("User-Agent").addHeader("User-Agent", userAgent ?: defAgent)
-                    // 设置 Referer
-                    val referer = paramMap?.getString("Referer")
-                    if (referer != null) request = request.addHeader("Referer", referer)
-                    // 设置 content-type
-                    val mediaType = MediaType.parse(
-                        paramMap?.getObject("headers")?.getString("content-type") ?: "application/json;charset=UTF-8"
-                    )
-                    // 设置 body
-                    val sendData = paramMap?.getString("body") ?: ""
-                    val requestBody = RequestBody.create(mediaType, sendData);
-                    // 设置 method(请求模式)
-                    val method = (paramMap?.getString("method") ?: "GET").toUpperCase(Locale.ROOT)
-                    request = if (method == "GET") request.get() else request.post(requestBody)
-                    // 发送请求
-                    val response = client.newCall(request.build()).execute()
+                    // 创建请求头
+                    val headerBuilder = Headers.Builder().add("user-agent", defAgent)
+                    // 创建请求类型
+                    var mediaType = "application/x-www-form-urlencoded"
+                    // 创建请求数据容器
+                    val bodyList = ArrayList<String>()
 
-                    this.status = response.code()
-                    this.statusText = response.message()
-                    this.text = response.body()?.string()
-                    this.success = "ok"
+                    if (paramMap != null) {
+                        for (key in paramMap.keys) {
+                            when (key.toLowerCase(Locale.ROOT)) {
+                                "method" -> paramMap.getString(key)?.let { method = it.toUpperCase(Locale.ROOT) }
+                                "body" -> paramMap.getString(key)?.let { bodyList.add(it) }
+                                "bodys" -> {
+                                    paramMap.getArray(key)?.let { bodyArr ->
+                                        for (i in 0 until bodyArr.count) bodyArr.getString(i)?.let { bodyList.add(it) }
+                                    }
+                                }
+                                "headers" -> {
+                                    paramMap.getObject(key)?.let { headers ->
+                                        for (head in headers.keys) {
+                                            if (head.toLowerCase(Locale.ROOT) == "content-type") {
+                                                headers.getString(head)?.let { mediaType = it }
+                                                continue
+                                            }
+                                            if (head.toLowerCase(Locale.ROOT) == "user-agent") headerBuilder.removeAll(head)
+                                            headers.getString(head)?.let { headerBuilder.add(head.toLowerCase(Locale.ROOT), it) }
+                                        }
+                                    }
+                                }
+                                else -> paramMap.getString(key)?.let { headerBuilder.add(key.toLowerCase(Locale.ROOT), it) }
+                            }
+                        }
+                    }
 
-                    Timber.tag("OkHttp").d("[Success] $method: $url?$sendData")
+                    if (bodyList.size == 0) bodyList.add("")
+                    for (body in bodyList) {
+                        val requestBuilder = if (method == "GET") {
+                            Request.Builder().url("$url?${body}").get()
+                        } else {
+                            Request.Builder().url(url).post(RequestBody.create(MediaType.parse(mediaType), body))
+                        }
+                        val response = client.newCall(requestBuilder.headers(headerBuilder.build()).build()).execute()
+                        if (response.code() == 200) {
+                            textList.add(response.body()!!.string())
+                            Timber.tag("OkHttp").d("[Success] $method: $url?$body")
+                        } else {
+                            failList.add("$method:$url?$body")
+                            Timber.tag("OkHttp").d("[Failed] $method: $url?$body")
+                            Timber.tag("OkHttp").d("Code: ${response.code()} | Msg: ${response.message()}")
+                        }
+                        status = response.code().toString()
+                        statusText = response.message()
+                    }
+                    success = "ok"
                 } catch (e: SocketTimeoutException) {
                     Timber.tag("OkHttp").w("[TimeOut] ($url): $e")
-                    this.error = "timeout"
+                    error = "timeout"
                 } catch (t: Throwable) {
                     t.printStackTrace()
                     Timber.tag("OkHttp").e("[ERROR] ($url): $t")
-                    this.error = t.message ?: "Fetch出现未知错误"
+                    error = t.message ?: "Fetch出现未知错误"
                 }
-                return JsonObjectWrapper(
-                    "status" to this.status,
-                    "statusText" to this.statusText,
-                    "error" to this.error,
-                    "success" to this.success
-                )
-            }
-
-            fun text(): String? {
-                return text
+                val json = JSONObject()
+                json.put("status", status)
+                json.put("statusText", statusText)
+                json.put("error", error)
+                json.put("success", success)
+                val textArr = JSONArray()
+                textList.forEach { T -> textArr.put(T) }
+                val failArr = JSONArray()
+                failList.forEach { T -> failArr.put(T) }
+                json.put("textArr", textArr)
+                json.put("failArr", failArr)
+                return json.toString()
             }
         }
         JsValue.fromNativeObject(jsBridge, okHttpKtApi).assignToGlobal("GlobalOkHttp")
         val jsAPI = """
-            class GlobalFetch {
+             class GlobalFetch {
                 status;
                 statusText;
                 error;
                 success;
-                #body;
+                textArr;
+                failArr;
                 constructor(url, params) {
-                    let Gres = GlobalOkHttp.fetch(url, params);
-                    this.status = Gres.status;
-                    this.statusText = Gres.statusText;
-                    this.error = Gres.error;
-                    this.success = Gres.success;
-                    this.#body = GlobalOkHttp.text();
+                    let FetchRes = JSON.parse(GlobalOkHttp.fetch(url, params));
+                    this.status = FetchRes.status;
+                    this.statusText = FetchRes.statusText;
+                    this.error = FetchRes.error;
+                    this.success = FetchRes.success;
+                    this.textArr = FetchRes.textArr;
+                    this.failArr = FetchRes.failArr;
                 }
-                text() { return this.#body || ''; }
-                json() { return this.#body ? JSON.parse(this.#body) : ''; }
+                text() { return this.textArr.join(''); }
+                json() {
+                    let resultJSON = this.textArr.map(t=>JSON.parse(t));
+                    return resultJSON.length == 1 ? resultJSON[0] : resultJSON ; 
+                }
             }
             const $apiName = (url, params) => new GlobalFetch(url, params || null);
             console.debug('OkHttp 方法已注入为 $apiName');

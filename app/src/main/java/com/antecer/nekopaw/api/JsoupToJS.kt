@@ -12,6 +12,7 @@ import org.jsoup.select.Elements
 /**
  * 连接Jsoup和QuickJS(JsBridge)
  */
+@Suppress("unused")
 class JsoupToJS private constructor() {
     companion object {
         val instance: JsoupToJS by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
