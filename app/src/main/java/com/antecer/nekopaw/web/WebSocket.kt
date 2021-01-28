@@ -51,8 +51,9 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String):
             if (js.isEmpty()) return
             launch(IO) {
                 kotlin.runCatching {
-                    JsEngine.instance.jsBridge.evaluateNoRetVal(js)
+                    JsEngine.instance.jsBridge.evaluate<Any?>(js)
                 }.onFailure {
+                    send(it.stackTraceToString())
                     it.printStackTrace()
                 }
             }
