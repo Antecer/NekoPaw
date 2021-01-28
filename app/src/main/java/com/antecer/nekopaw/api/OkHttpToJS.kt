@@ -206,7 +206,9 @@ class OkHttpToJS private constructor() {
                                 val retryAgain = retryCount - 1
                                 if (retryAgain > 0) {
                                     sleep(100); callAsync(request, resIndex, retryAgain)
-                                } else --actionsStep
+                                } else {
+                                    --actionsStep
+                                }
                             }
                         }
 
@@ -215,7 +217,9 @@ class OkHttpToJS private constructor() {
                             val retryAgain = retryCount - 1
                             if (retryAgain > 0) {
                                 sleep(100); callAsync(request, resIndex, retryAgain)
-                            } else --actionsStep
+                            } else {
+                                --actionsStep
+                            }
                         }
                     })
                 }
@@ -231,7 +235,7 @@ class OkHttpToJS private constructor() {
                     callAsync(requestBuilder.build(), i, retrySet)
                 }
                 // 等待网络请求完成
-                while (actionsStep > 0) sleep(50)
+                while (actionsStep > 0) sleep(100)
                 return resultsText
             } catch (t: Throwable) {
                 t.printStackTrace()
