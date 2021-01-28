@@ -13,7 +13,7 @@ var baseObject = {
 };
 
 // 判断详情页
-var isDetail = '';
+var isDetailHtml = '';
 
 // 搜索页
 function search(searchKey) {
@@ -32,11 +32,11 @@ function search(searchKey) {
 	let titleList = searchList.queryAllText('h3>a');
 	console.info(`解析到 ${titleList.length} 个结果`);
 	if (titleList.length == 0) {
-		isDetail = document;
+		isDetailHtml = html;
 		baseObject.search.push({ url: response.finalUrl });
 		console.info(`尝试作为详情页解析`);
 		return;
-	} else isDetail = '';
+	}
 	let authorList = searchList.queryAllText('span:nth-child(1)');
 	let introList = searchList.queryAllText('.book_des');
 	let tagList = searchList.queryAllText('span:nth-child(3)');
@@ -63,14 +63,15 @@ function search(searchKey) {
 
 // 详情页
 function detail(url) {
-	let document = isDetail;
-	if (!document) {
+	let html = isDetailHtml;
+	if (!html) {
 		console.info(`开始获取详情页 ${url}`);
 		let response = fetch(url);
-		let html = response.text();
-		document = new Document(html);
-		console.info('成功获取结果');
+		html = response.text();
 	}
+	let document = new Document(html);
+	isDetailHtml = ''; // 跳转标志使用后清空
+	console.info('成功获取详情页');
 
 	baseObject.detail = {
 		title: document.queryAttr('[property="og:novel:book_name"]', 'content'),
@@ -83,6 +84,7 @@ function detail(url) {
 		last: document.queryAttr('[property="og:novel:latest_chapter_name"]', 'content'),
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
+	isDetail = '';
 	console.info(`详情页解析完成\n${JSON.stringify(baseObject.detail)}\n`);
 }
 
@@ -91,12 +93,12 @@ function chapter(url) {
 	console.info(`开始获取目录页 ${url}`);
 	let response = fetch(url);
 	let html = response.text();
-	let document = new Document(html);
+	//let document = new Document(html);
 	console.info('成功获取结果');
 
 	let bid = parseInt(html.match(/data-bid="(\d+)/)[1]);
 	let reg = 'href="/chapter/[^/]+/([^"]+)[^>]+>([^<]+)[^>]+>([^<]+)';
-	baseObject.chapter = html.match(new RegExp(reg, 'g')).map((item) => {
+	baseObject.chapters = html.match(new RegExp(reg, 'g')).map((item) => {
 		let ret = item.match(reg);
 		return { cN: ret[2], uT: ret[3].trim(), id: parseInt(ret[1]) + bid };
 	});
@@ -114,7 +116,7 @@ function chapter(url) {
 		// 	},
 		// 	bodys: bodyList
 		// }).json();
-		// bArr.forEach((b) => Array.prototype.push.apply(baseObject.chapter, b.data));
+		// bArr.forEach((b) => Array.prototype.push.apply(baseObject.chapters, b.data));
 		// 并发请求
 		let fetchList = [];
 		for (let i = 1; i <= p; ++i) {
@@ -129,18 +131,18 @@ function chapter(url) {
 		}
 		let bArr = fetchAll(fetchList, 5); // 允许重试5次
 		bArr.forEach((b, i) => {
-			if (b) Array.prototype.push.apply(baseObject.chapter, JSON.parse(b).data);
+			if (b) Array.prototype.push.apply(baseObject.chapters, JSON.parse(b).data);
 			else console.info(`第 ${i} 页请求失败!`);
 		});
 		console.info('成功获取隐藏章节');
 	}
-	baseObject.chapter = baseObject.chapter
+	baseObject.chapters = baseObject.chapters
 		.sort((a, b) => (a.id < b.id ? -1 : 1))
 		.map((item) => {
 			item.id = '/chapter/' + bid + '/' + (item.id - bid);
 			return { title: item.cN, time: item.uT, url: item.id };
 		});
-	console.info(`目录页解析完成,共 ${baseObject.chapter.length} 章\n第一章: ${JSON.stringify(baseObject.chapter[0])}\n`);
+	console.info(`目录页解析完成,共 ${baseObject.chapters.length} 章\n第一章: ${JSON.stringify(baseObject.chapters[0])}\n`);
 }
 
 // 正文页
@@ -163,4 +165,4 @@ function context(url) {
 }
 
 // 需要交给App调用的任务链(必要)
-step = [(sKey) => search(sKey), () => detail(baseObject.info.origin + baseObject.search[0].url), () => chapter(baseObject.detail.url), () => context(baseObject.info.origin + baseObject.chapter[0].url)];
+step = [(sKey) => search(sKey), () => detail(baseObject.info.origin + baseObject.search[0].url), () => chapter(baseObject.detail.url), () => context(baseObject.info.origin + baseObject.chapters[0].url)];
