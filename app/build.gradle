@@ -75,8 +75,7 @@ dependencies {
     implementation 'org.jsoup:jsoup:1.13.1'
     implementation 'cn.wanghaomiao:JsoupXpath:2.3.2'
     implementation 'com.jayway.jsonpath:json-path:2.5.0'
-    // RxHttp
-//    implementation 'com.squareup.okhttp3:okhttp:4.9.0'
-//    implementation 'com.ljx.rxhttp:rxhttp:2.5.4'
-//    kapt 'com.ljx.rxhttp:rxhttp-compiler:2.5.4'
+    //webServer
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+    implementation 'org.nanohttpd:nanohttpd-websocket:2.3.1'
 }

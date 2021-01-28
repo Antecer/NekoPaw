@@ -6,12 +6,15 @@ import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.api.JsEngine
 import com.antecer.nekopaw.databinding.ActivityMainBinding
+import com.antecer.nekopaw.web.NetworkUtils
+import com.antecer.nekopaw.web.WebSocketServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import timber.log.Timber.DebugTree
+import java.io.IOException
 import java.lang.Exception
 
 
@@ -42,6 +45,18 @@ class MainActivity : AppCompatActivity(),
             JsEngine.instance.setLogout(mBinding.printBox)
             JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
             Timber.tag("QuickJS").d("载入JS完成")
+        }
+
+        val webSocketServer = WebSocketServer(52345)
+        val address = NetworkUtils.getLocalIPAddress()
+        if(address != null){
+            try {
+                webSocketServer.start(1000*30)
+                mBinding.printBox.text.append("\n启动webSocketServer\n")
+                mBinding.printBox.text.append("ws://${address.hostAddress}:52345/runJS")
+            }catch (e:IOException){
+                e.printStackTrace()
+            }
         }
 
         // 绑定搜索事件
