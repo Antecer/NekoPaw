@@ -1,6 +1,6 @@
 package com.antecer.nekopaw.api
 
-import android.widget.EditText
+import android.widget.TextView
 import de.prosiebensat1digital.oasisjsbridge.JsBridge
 import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
 import de.prosiebensat1digital.oasisjsbridge.JsValue
@@ -23,9 +23,9 @@ class JsEngine private constructor() {
     var jsBridge: JsBridge = JsBridge(JsBridgeConfig.bareConfig())
 
     // 绑定日志输出控件
-    private var logView: EditText? = null
-    val setLogout = { T: EditText -> logView = T }
-    val clearLogView = { logView?.let { it.post { it.text.clear() } } }
+    private var logView: TextView? = null
+    val setLogout = { T: TextView -> logView = T }
+    val clearLogView = { logView?.let { it.post { it.text = "" } } }
 
     // 打印日志到目标控件
     private var startTime: Long = 0
@@ -35,7 +35,7 @@ class JsEngine private constructor() {
             it.post {
                 val converter = SimpleDateFormat("[mm:ss.SSS]", Locale.getDefault())
                 val msg = "${converter.format(Date(System.currentTimeMillis() - startTime))} $T"
-                it.text.appendLine(msg)
+                it.append("${msg}\n")
             }
         }
     }

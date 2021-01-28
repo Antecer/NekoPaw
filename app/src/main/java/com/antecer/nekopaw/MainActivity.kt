@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
 import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.viewbinding.BuildConfig
 import com.antecer.nekopaw.api.JsEngine
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import com.antecer.nekopaw.web.NetworkUtils
@@ -35,7 +36,7 @@ class MainActivity : AppCompatActivity(),
         // 设置标题
         mBinding.toolbar.title = "猫爪"
         // 调用原生方法的示例
-        mBinding.printBox.text.append(stringFromJNI())
+        mBinding.printBox.text = stringFromJNI()
         // 允许内容滚动
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 

@@ -26,27 +26,13 @@
         app:showAsAction="always"
         tools:ignore="MissingConstraints" />
 
-    <!--    <TextView-->
-    <!--        android:id="@+id/printBox"-->
-    <!--        android:layout_width="match_parent"-->
-    <!--        android:layout_height="match_parent"-->
-    <!--        android:scrollbars="vertical"-->
-    <!--        android:text="Hello World!"/>-->
-
-    <EditText
+    <TextView
         android:id="@+id/printBox"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="56dp"
-        android:background="@null"
-        android:ems="10"
-        android:gravity="start|top"
-        android:importantForAutofill="no"
-        android:inputType="textMultiLine"
-        android:paddingVertical="0dp"
+        android:scrollbars="vertical"
         android:text="Hello World!"
-        android:textSize="14dp"
-        tools:ignore="LabelFor,SpUsage" />
-
+        android:textIsSelectable="true" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
