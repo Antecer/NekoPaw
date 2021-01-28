@@ -6,8 +6,8 @@ var baseObject = {
 		site: '💮斋书苑',
 		group: '更新快;无错字'
 	},
-	search: [{ title: '书名', author: '作者', intro: '简介', tag: '分类', count: '字数', img: '封面', date: '更新日期', url: '详情页' }],
-	detail: { title: '书名', author: '作者', intro: '简介', tag: '分类', count: '字数', img: '封面', date: '更新日期', url: '目录页' },
+	search: [{ title: '书名', author: '作者', intro: '简介', tag: '分类', count: '字数', img: '封面', date: '更新日期', last: '最新章节', url: '详情页' }],
+	detail: { title: '书名', author: '作者', intro: '简介', tag: '分类', count: '字数', img: '封面', date: '更新日期', last: '最新章节', url: '目录页' },
 	chapter: [{ title: '标题', time: '更新日期', url: '正文页' }],
 	context: ''
 };
@@ -43,6 +43,7 @@ function search(searchKey) {
 	let countList = searchList.queryAllText('span:nth-child(4)');
 	let imgList = searchList.queryAllAttr('img', '_src');
 	let dateList = searchList.queryAllText('dd:last-child>span');
+	let lastList = searchList.queryAllText('dd:last-child>a');
 	let urlList = searchList.queryAllAttr('dt>a', 'href');
 	for (let i = 0, n = titleList.length; i < n; ++i) {
 		baseObject.search.push({
@@ -53,6 +54,7 @@ function search(searchKey) {
 			count: countList[i],
 			img: imgList[i],
 			date: dateList[i],
+			last: lastList[i],
 			url: urlList[i]
 		});
 	}
@@ -78,6 +80,7 @@ function detail(url) {
 		count: document.queryText('.count li:last-child>span'),
 		img: document.queryAttr('[property="og:image"]', 'content'),
 		date: document.queryAttr('[property="og:novel:update_time"]', 'content'),
+		last: document.queryAttr('[property="og:novel:latest_chapter_name"]', 'content'),
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
 	console.info(`详情页解析完成\n${JSON.stringify(baseObject.detail)}\n`);

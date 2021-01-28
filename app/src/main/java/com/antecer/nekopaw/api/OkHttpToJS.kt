@@ -193,6 +193,7 @@ class OkHttpToJS private constructor() {
                  */
                 fun callAsync(request: Request, resIndex: Int, retryCount: Int) {
                     client.newCall(request).enqueue(object : Callback {
+                        // 请求成功的回调函数
                         override fun onResponse(call: Call, response: Response) {
                             if (response.code() == 200) {
                                 Timber.tag("OkHttpAsync").i("[200] ${response.request().url()}?${sendBodyList[resIndex]}")
@@ -209,6 +210,7 @@ class OkHttpToJS private constructor() {
                             }
                         }
 
+                        // 网络错误的回调函数
                         override fun onFailure(call: Call, e: IOException) {
                             Timber.tag("OkHttpAsync").i("[Failed] ${request.url()}?${sendBodyList[resIndex]}\n$e")
                             val retryAgain = retryCount - 1
@@ -221,6 +223,7 @@ class OkHttpToJS private constructor() {
                     })
                 }
 
+                // 循环添加网络请求任务
                 for (i in 0 until actionCount) {
                     readParams(actionArr?.getArray(i))
                     if (urlList[i] == null) continue
