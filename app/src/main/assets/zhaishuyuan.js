@@ -136,7 +136,7 @@ function chapter(url) {
 			]);
 		}
 		let retryCount = 5; // 允许并发失败的次数
-		let bArr = GlobalOkHttp.fetchAll(fetchList, retryCount);
+		let bArr = fetchAll(fetchList, retryCount);
 		bArr.forEach((b,i)=>{
 		    if(b) Array.prototype.push.apply(baseObject.chapter, JSON.parse(b).data);
 		    else console.info(`第 ${i} 页请求失败!`);

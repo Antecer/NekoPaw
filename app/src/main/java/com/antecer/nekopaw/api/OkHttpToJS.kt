@@ -267,6 +267,7 @@ class OkHttpToJS private constructor() {
                 json() { return this.returnArr ? this.textArr.map(t=>JSON.parse(t)) : JSON.parse(this.textArr[0]); }
             }
             const $apiName = (url, params) => new GlobalFetch(url, params || null);
+            const ${apiName}All = (fetchArray, retryNum, multiCall) => GlobalOkHttp.fetchAll(fetchArray, retryNum, multiCall);
             console.debug('OkHttp 方法已注入为 $apiName');
         """.trimIndent()
         // 注入 js 包装的方法
