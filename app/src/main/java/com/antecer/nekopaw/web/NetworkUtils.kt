@@ -8,7 +8,7 @@ import java.util.regex.Pattern
 
 object NetworkUtils {
     /**
-     * Get local Ip address.
+     * 获取本地IP地址
      */
     fun getLocalIPAddress(): InetAddress? {
         var enumeration: Enumeration<NetworkInterface>? = null
@@ -36,17 +36,16 @@ object NetworkUtils {
     }
 
     /**
-     * Check if valid IPV4 address.
-     *
-     * @param input the address string to check for validity.
-     * @return True if the input parameter is a valid IPv4 address.
+     * 校验 IPv4 地址是否有效
+     * @param input 用于校验的IP地址
+     * @return 如果输入字符串是有效的IPv4地址，则为True
      */
     private fun isIPv4Address(input: String): Boolean {
         return IPV4_PATTERN.matcher(input).matches()
     }
 
     /**
-     * Ipv4 address check.
+     * IPv4 地址校验正则表达式
      */
     private val IPV4_PATTERN = Pattern.compile(
         "^(" + "([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}" +

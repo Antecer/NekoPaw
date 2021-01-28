@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 配置日志输出
         class CrashReportingTree : Timber.Tree() {
             override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {}
         }
@@ -48,13 +49,12 @@ class MainActivity : AppCompatActivity(),
             Timber.tag("QuickJS").d("载入JS完成")
         }
 
-        val webSocketServer = WebSocketServer(52345)
-        val address = NetworkUtils.getLocalIPAddress()
-        if(address != null){
+        // 配置WebSocket
+        NetworkUtils.getLocalIPAddress()?.let { address ->
             try {
-                webSocketServer.start(1000*30*100)
-                mBinding.printBox.text = mBinding.printBox.text.toString() + "\n启动webSocketServer\n" + "ws://${address.hostAddress}:52345/runJS"
-            }catch (e:IOException){
+                WebSocketServer(52345).start(1000 * 30 * 100)
+                mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:52345/runJS")
+            } catch (e: IOException) {
                 e.printStackTrace()
             }
         }
