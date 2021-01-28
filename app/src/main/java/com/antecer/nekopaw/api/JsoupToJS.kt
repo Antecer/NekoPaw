@@ -6,6 +6,7 @@ import de.prosiebensat1digital.oasisjsbridge.JsValue
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.TextNode
 import org.jsoup.select.Elements
 
 /**
@@ -127,6 +128,16 @@ class JsoupToJS private constructor() {
         }
 
         // jsoup自有方法
+        fun textNodes(mark: String): Array<String> {
+            var textNodes: MutableList<TextNode>? = null
+            when (mark[0]) {
+                'a' -> textNodes = aMap[mark]!!.textNodes()
+                'b' -> textNodes = bMap[mark]!!.textNodes()
+                'c' -> textNodes = cMap[mark]!!.textNodes()
+            }
+            return textNodes?.map { T -> T.text() }?.toTypedArray() ?: emptyArray()
+        }
+
         fun remove(mark: String) {
             when (mark[0]) {
                 'a' -> aMap[mark]?.remove()
@@ -223,6 +234,7 @@ class JsoupToJS private constructor() {
                 select(trait) { return new Document(null, GlobalJsoup.querySelectorAll(trait, this.#mark)); }
                 html(s) { return GlobalJsoup.innerHTML(this.#mark, s||null); }
                 text(s) { return GlobalJsoup.innerText(this.#mark, s||null); }
+                textNodes() { return GlobalJsoup.textNodes(this.#mark); }
                 remove() { GlobalJsoup.remove(this.#mark); }
                 before(html) { GlobalJsoup.before(this.#mark, html); }
                 
