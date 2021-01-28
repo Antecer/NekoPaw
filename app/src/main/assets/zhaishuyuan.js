@@ -135,21 +135,12 @@ function chapter(url) {
 				}
 			]);
 		}
-		let retryCount = 5; // 并发有可能失败,然后需要重试
-		while (fetchList.length > 0 && --retryCount) {
-			let bArr = GlobalOkHttp.fetchAll(fetchList);
-			let retryList = [];
-			if(!bArr) continue;
-			JSON.parse(bArr).forEach((b) => {
-				if (b.startsWith('fail')) {
-					retryList.push(fetchList[b.split('|')[1]]);
-				} else {
-					Array.prototype.push.apply(baseObject.chapter, JSON.parse(b).data);
-				}
-			});
-			fetchList = [].concat(retryList);
-		}
-
+		let retryCount = 5; // 允许并发失败的次数
+		let bArr = GlobalOkHttp.fetchAll(fetchList, retryCount);
+		bArr.forEach((b,i)=>{
+		    if(b) Array.prototype.push.apply(baseObject.chapter, JSON.parse(b).data);
+		    else console.info(`第 ${i} 页请求失败!`);
+		})
 		console.info('成功获取隐藏章节');
 	}
 	baseObject.chapter = baseObject.chapter

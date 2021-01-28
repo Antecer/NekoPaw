@@ -9,6 +9,7 @@ import timber.log.Timber
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.util.*
+import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
 
 /**
@@ -23,13 +24,17 @@ class OkHttpToJS private constructor() {
     }
 
     // 创建 OkHttp 对象
-    val client: OkHttpClient = OkHttpClient()
+    val client: OkHttpClient = OkHttpClient().newBuilder().connectTimeout(3, TimeUnit.SECONDS).build()
 
     /**
      * 包装 okHttp 方法
      */
     private val okHttpKtApi = object : JsToNativeInterface {
-        // 模拟 fetch 请求
+        /**
+         * 顺序网络请求
+         * @param url fetch请求网址
+         * @param params fetch请求参数
+         */
         fun fetch(url: String, params: JsonObjectWrapper?): String {
             var finalUrl = url
             var status = ""
@@ -122,16 +127,22 @@ class OkHttpToJS private constructor() {
             return json.toString()
         }
 
-        // 并发网络请求(待完成)
-        fun fetchAll(actions: JsonObjectWrapper): String? {
-            val urlList = ArrayList<String>()
+        /**
+         * 并发网络请求
+         * @param actions fetch请求参数,例: [[[url,{...params}]],...]
+         * @param retryNum 请求失败的重试次数
+         */
+        fun fetchAll(actions: JsonObjectWrapper, retryNum: Int = 3, multiCall: Int = 5): Array<String?>? {
+            val retrySet = if (retryNum > 0) retryNum else 3    // 设置重试次数
+            val multiCal = if (multiCall > 0) multiCall else 5  // 设置并发连接数
+            client.dispatcher().maxRequestsPerHost = multiCal   // 修改 okHttp 并发数(默认5)
+            val urlList = ArrayList<String?>()
             val methodList = ArrayList<String>()
             val headersList = ArrayList<Headers>()
             val mediaTypeList = ArrayList<MediaType>()
             val sendBodyList = ArrayList<String>()
-            val readParams = { work: JSONArray ->
-                val url = work.getString(0)
-                val params = work.optJSONObject(1)
+            // 解析网络请求参数
+            val readParams = { work: PayloadArray? ->
                 // 设置请求模式
                 var method = "GET"
                 // 设置默认 User-Agent
@@ -142,27 +153,32 @@ class OkHttpToJS private constructor() {
                 var mediaType = "application/x-www-form-urlencoded"
                 // 创建请求体
                 var sendBody = ""
-                if (params != null) {
-                    for (key in params.keys()) {
+                // 分析请求参数
+                work?.getObject(1)?.let { params ->
+                    for (key in params.keys) {
                         when (key.toLowerCase(Locale.ROOT)) {
-                            "method" -> method = params.optString(key, method)
-                            "body" -> sendBody = params.optString(key, sendBody)
+                            "method" -> params.getString(key)?.let { method = it }
+                            "body" -> params.getString(key)?.let { sendBody = it }
                             "headers" -> {
-                                val headers = params.getJSONObject(key)
-                                for (head in headers.keys()) {
-                                    when (head.toLowerCase(Locale.ROOT)) {
-                                        "content-type" -> mediaType = headers.optString(head, mediaType)
-                                        "user-agent" -> headersBuilder.removeAll(head).add(head.toLowerCase(Locale.ROOT), headers.optString(head))
-                                        else -> headersBuilder.add(head.toLowerCase(Locale.ROOT), headers.optString(head))
+                                params.getObject(key)?.let { headers ->
+                                    for (head in headers.keys) {
+                                        headers.getString(head)?.let { value ->
+                                            when (head.toLowerCase(Locale.ROOT)) {
+                                                "content-type" -> mediaType = value
+                                                "user-agent" -> headersBuilder.removeAll(head).add(head, value)
+                                                else -> headersBuilder.add(head, value)
+                                            }
+                                        }
                                     }
+
                                 }
                             }
-                            else -> headersBuilder.add(key.toLowerCase(Locale.ROOT), params.optString(key))
+                            else -> params.getString(key)?.let { headersBuilder.add(key, it) }
                         }
                     }
                 }
                 // 保存取得的值
-                urlList.add(url)
+                urlList.add(work?.getString(0))
                 methodList.add(method)
                 headersList.add(headersBuilder.build())
                 mediaTypeList.add(MediaType.get(mediaType))
@@ -170,44 +186,53 @@ class OkHttpToJS private constructor() {
             }
 
             try {
-                val actionArr = JSONArray(actions.jsonString)
-                var actionCount = actionArr.length()
-                val actionsText = Array(actionCount) { "" }
-
-                for (i in 0 until actionArr.length()) {
-                    readParams(actionArr.optJSONArray(i))
-                    val requestBuilder = Request.Builder()
-                    when (methodList[i]) {
-                        "POST" -> requestBuilder.url(urlList[i]).post(RequestBody.create(mediaTypeList[i], sendBodyList[i]))
-                        else -> requestBuilder.url(urlList[i] + '?' + sendBodyList[i]).get()
-                    }
-                    // 发起异步网络请求
-                    client.newCall(requestBuilder.build()).enqueue(object : Callback {
+                val actionArr = actions.toPayloadArray()
+                val actionCount = actionArr?.count ?: 0
+                // 存储请求成功的字符串
+                val resultsText = arrayOfNulls<String>(actionCount)
+                var actionsStep = actionCount;
+                /**
+                 * 发起异步网络请求
+                 */
+                fun callAsync(request: Request, resIndex: Int, retryCount: Int) {
+                    client.newCall(request).enqueue(object : Callback {
                         override fun onResponse(call: Call, response: Response) {
-                            val resCode = response.code();
-                            actionsText[i] = if (resCode == 200) {
-                                response.body()?.string()!!
+                            if (response.code() == 200) {
+                                Timber.tag("OkHttpAsync").i("[200] ${response.request().url()}?${sendBodyList[resIndex]}")
+                                resultsText[resIndex] = response.body()?.string()!!
+                                --actionsStep
                             } else {
-                                "fail|$i"
+                                Timber.tag("OkHttpAsync").i("[${response.code()}] ${request.url()}?${sendBodyList[resIndex]}\n${response.message()}")
+                                val retryAgain = retryCount - 1
+                                if (retryAgain > 0) {
+                                    sleep(100); callAsync(request, resIndex, retryAgain)
+                                } else --actionsStep
                             }
-                            --actionCount;
-                            val request = response.request()
-                            Timber.tag("OkHttpAsync").i("[Success] ${request.url()}?${sendBodyList[i]}")
                         }
 
                         override fun onFailure(call: Call, e: IOException) {
-                            actionsText[i] = "fail,error=$e"
-                            --actionCount;
-                            Timber.tag("OkHttpAsync").i("[Failed] $e")
+                            Timber.tag("OkHttpAsync").i("[Failed] ${request.url()}?${sendBodyList[resIndex]}\n$e")
+                            val retryAgain = retryCount - 1
+                            if (retryAgain > 0) {
+                                sleep(100); callAsync(request, resIndex, retryAgain)
+                            } else --actionsStep
                         }
                     })
                 }
+
+                for (i in 0 until actionCount) {
+                    readParams(actionArr?.getArray(i))
+                    if (urlList[i] == null) continue
+                    val requestBuilder = Request.Builder()
+                    when (methodList[i]) {
+                        "POST" -> requestBuilder.url(urlList[i]!!).post(RequestBody.create(mediaTypeList[i], sendBodyList[i]))
+                        else -> requestBuilder.url("${urlList[i]}?${sendBodyList[i]}").get()
+                    }
+                    callAsync(requestBuilder.build(), i, retrySet)
+                }
                 // 等待网络请求完成
-                while (actionCount > 0) sleep(100)
-                val resultJSON = JSONArray()
-                actionsText.forEach { t-> resultJSON.put(t)}
-                val resultStr = resultJSON.toString()
-                return resultStr
+                while (actionsStep > 0) sleep(50)
+                return resultsText
             } catch (t: Throwable) {
                 t.printStackTrace()
                 Timber.tag("OkHttpAsync").e("[ERROR] $t")
@@ -222,8 +247,6 @@ class OkHttpToJS private constructor() {
      * @param name 注入到js内的名称
      */
     fun binding(jsBridge: JsBridge, apiName: String = "fetch") {
-        // 修改 okHttp 并发数
-        client.dispatcher().maxRequestsPerHost = 10
         // 注入 okHttp
         JsValue.fromNativeObject(jsBridge, okHttpKtApi).assignToGlobal("GlobalOkHttp")
         // 包装 js 方法
