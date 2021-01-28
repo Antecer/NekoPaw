@@ -130,7 +130,7 @@ class OkHttpToJS private constructor() {
          * @param actions fetch请求参数,例: [[[url,{...params}]],...]
          * @param retryNum 请求失败的重试次数
          */
-        fun fetchAll(actions: JsonObjectWrapper, retryNum: Int = 3, multiCall: Int = 5): Array<String?>? {
+        fun fetchAll(actions: JsonObjectWrapper, retryNum: Int = 3, multiCall: Int = 5): Array<String?> {
             val retrySet = if (retryNum > 0) retryNum else 3    // 设置重试次数
             val multiCal = if (multiCall > 0) multiCall else 5  // 设置并发连接数
             client.dispatcher().maxRequestsPerHost = multiCal   // 修改 okHttp 并发数(默认5)
@@ -238,7 +238,7 @@ class OkHttpToJS private constructor() {
                 t.printStackTrace()
                 Timber.tag("OkHttpAsync").e("[ERROR] $t")
             }
-            return null
+            return arrayOfNulls(actions.toPayloadArray()?.count ?: 1)
         }
     }
 
