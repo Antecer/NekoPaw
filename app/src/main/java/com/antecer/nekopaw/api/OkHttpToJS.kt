@@ -44,23 +44,21 @@ class OkHttpToJS private constructor() {
             val failList = ArrayList<String>()  // 保存请求失败的 url
             val textList = ArrayList<String>()  // 保存请求成功的 response.body().string()
             try {
-                // 取得参数
-                val paramMap = params?.toPayloadObject()
                 // 设置请求模式
                 var method = "GET"
                 // 设置默认 User-Agent
                 val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
-                // 创建请求头
+                // 创建请求头构造器
                 val headerBuilder = Headers.Builder().add("user-agent", defAgent)
-                // 创建请求类型
+                // 设置请求类型
                 var mediaType = "application/x-www-form-urlencoded"
                 // 创建请求数据容器
                 val bodyList = ArrayList<String>()
-
-                if (paramMap != null) {
+                // 分析请求参数
+                params?.toPayloadObject()?.let { paramMap ->
                     for (key in paramMap.keys) {
-                        when (key.toLowerCase(Locale.ROOT)) {
-                            "method" -> paramMap.getString(key)?.let { method = it.toUpperCase(Locale.ROOT) }
+                        when (key.toLowerCase(Locale.US)) {
+                            "method" -> paramMap.getString(key)?.let { method = it }
                             "body" -> paramMap.getString(key)?.let { bodyList.add(it) }
                             "bodys" -> {
                                 paramMap.getArray(key)?.let { bodyArr ->
@@ -70,20 +68,20 @@ class OkHttpToJS private constructor() {
                             "headers" -> {
                                 paramMap.getObject(key)?.let { headers ->
                                     for (head in headers.keys) {
-                                        if (head.toLowerCase(Locale.ROOT) == "content-type") {
-                                            headers.getString(head)?.let { mediaType = it }
-                                            continue
+                                        headers.getString(head)?.let { value ->
+                                            when (head.toLowerCase(Locale.US)) {
+                                                "content-type" -> mediaType = value
+                                                "user-agent" -> headerBuilder.removeAll(head).add(head, value)
+                                                else -> headerBuilder.add(head, value)
+                                            }
                                         }
-                                        if (head.toLowerCase(Locale.ROOT) == "user-agent") headerBuilder.removeAll(head)
-                                        headers.getString(head)?.let { headerBuilder.add(head.toLowerCase(Locale.ROOT), it) }
                                     }
                                 }
                             }
-                            else -> paramMap.getString(key)?.let { headerBuilder.add(key.toLowerCase(Locale.ROOT), it) }
+                            else -> paramMap.getString(key)?.let { headerBuilder.add(key, it) }
                         }
                     }
                 }
-
                 if (bodyList.size == 0) bodyList.add("")
                 for (body in bodyList) {
                     val requestBuilder = if (method == "GET") {
@@ -156,21 +154,20 @@ class OkHttpToJS private constructor() {
                 // 分析请求参数
                 work?.getObject(1)?.let { params ->
                     for (key in params.keys) {
-                        when (key.toLowerCase(Locale.ROOT)) {
+                        when (key.toLowerCase(Locale.US)) {
                             "method" -> params.getString(key)?.let { method = it }
                             "body" -> params.getString(key)?.let { sendBody = it }
                             "headers" -> {
                                 params.getObject(key)?.let { headers ->
                                     for (head in headers.keys) {
                                         headers.getString(head)?.let { value ->
-                                            when (head.toLowerCase(Locale.ROOT)) {
+                                            when (head.toLowerCase(Locale.US)) {
                                                 "content-type" -> mediaType = value
                                                 "user-agent" -> headersBuilder.removeAll(head).add(head, value)
                                                 else -> headersBuilder.add(head, value)
                                             }
                                         }
                                     }
-
                                 }
                             }
                             else -> params.getString(key)?.let { headersBuilder.add(key, it) }
