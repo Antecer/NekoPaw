@@ -52,9 +52,8 @@ class MainActivity : AppCompatActivity(),
         val address = NetworkUtils.getLocalIPAddress()
         if(address != null){
             try {
-                webSocketServer.start(1000*30)
-                mBinding.printBox.text.append("\n启动webSocketServer\n")
-                mBinding.printBox.text.append("ws://${address.hostAddress}:52345/runJS")
+                webSocketServer.start(1000*30*100)
+                mBinding.printBox.text = mBinding.printBox.text.toString() + "\n启动webSocketServer\n" + "ws://${address.hostAddress}:52345/runJS"
             }catch (e:IOException){
                 e.printStackTrace()
             }
