@@ -2,9 +2,9 @@ package com.antecer.nekopaw
 
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
+import android.util.Log
 import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.viewbinding.BuildConfig
 import com.antecer.nekopaw.api.JsEngine
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import com.antecer.nekopaw.web.NetworkUtils
@@ -23,12 +23,11 @@ class MainActivity : AppCompatActivity(),
         super.onCreate(savedInstanceState)
 
         // 配置日志输出
-        Timber.plant(DebugTree())
-//        class CrashReportingTree : Timber.Tree() {
-//            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {}
-//        }
-//        Timber.plant(if (BuildConfig.DEBUG) DebugTree() else CrashReportingTree())
-
+        class ReleaseTree : Timber.Tree() {
+            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+            }
+        }
+        Timber.plant(if (BuildConfig.DEBUG) DebugTree() else ReleaseTree())
 
         // 绑定视图
         val mBinding = ActivityMainBinding.inflate(layoutInflater)
@@ -41,19 +40,9 @@ class MainActivity : AppCompatActivity(),
         // 允许内容滚动
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
-        // 配置WebSocket
-        NetworkUtils.getLocalIPAddress()?.let { address ->
-            try {
-                WebSocketServer(52345).start(1000 * 30 * 100)
-                mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:52345/runJS")
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
-        }
-
         // 初始化JS引擎
-        //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
-        val js = assets.open("zwdu.js").readBytes().decodeToString()
+        val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
+        //val js = assets.open("zwdu.js").readBytes().decodeToString()
         GlobalScope.launch {
             JsEngine.instance.setLogout(mBinding.printBox)
             JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
@@ -73,6 +62,16 @@ class MainActivity : AppCompatActivity(),
                 return false
             }
         })
+
+        // 配置WebSocket
+        NetworkUtils.getLocalIPAddress()?.let { address ->
+            try {
+                WebSocketServer(52345).start(1000 * 30 * 100)
+                mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:52345/runJS")
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+        }
     }
 
     /**

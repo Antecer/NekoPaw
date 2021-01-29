@@ -98,9 +98,7 @@ class OkHttpToJS private constructor() {
                     Timber.tag("OkHttp").d("[${response.code}] $method: $url$callBody")
                 }
 
-                responseBody = response.body?.let {
-                    if (charset != null) String(it.bytes(), charset!!); else it.string()
-                } ?: ""
+                responseBody = response.body?.let { body -> charset?.let { String(body.bytes(), it) } ?: body.string() } ?: ""
                 finalUrl = response.request.url.toString()
                 status = response.code.toString()
                 statusText = response.message
@@ -208,9 +206,10 @@ class OkHttpToJS private constructor() {
                         override fun onResponse(call: Call, response: Response) {
                             if (response.code == 200) {
                                 Timber.tag("OkHttpAsync").i("[200] ${response.request.url}?${sendBodyList[resIndex]}")
-                                resultsText[resIndex] = response.body?.let {
+
+                                resultsText[resIndex] = response.body?.let { body ->
                                     val charset = charsetList[resIndex]
-                                    if (charset != null) String(it.bytes(), charset!!); else it.string()
+                                    charset?.let { String(body.bytes(), it) } ?: body.string()
                                 } ?: ""
                                 --actionsStep
                             } else {
