@@ -87,6 +87,38 @@ class JsEngine private constructor() {
             console.debug('URLDecoder 方法已注入为 decodeURI');
         """.trimIndent())
 
+        // 注入日期格式化函数,用法:new Date().Format("yyyy-MM-dd hh:mm:ss.fff")
+        jsBridge.evaluateBlocking<Any>("""
+Date.prototype.format = function (exp) {
+	let t = {
+		'y+': '' + this.getFullYear(), // 年
+		'M+': '' + (this.getMonth() + 1), // 月
+		'd+': '' + this.getDate(), // 日
+		'h+': '' + this.getHours(), // 时
+		'm+': '' + this.getMinutes(), // 分
+		's+': '' + this.getSeconds(), // 秒
+		'f+': '' + this.getMilliseconds(), // 毫秒
+		'q+': '' + Math.floor(this.getMonth() / 3 + 1) // 季度
+	};
+	for (let k in t) {
+		let m = exp.match(k);
+		if (m) {
+			switch (k) {
+				case 'y+':
+					exp = exp.replace(m[0], t[k].substr(0 - m[0].length));
+					break;
+				case 'f+':
+					exp = exp.replace(m[0], t[k].substr(0, m[0].length));
+					break;
+				default:
+					exp = exp.replace(m[0], m[0].length == 1 ? t[k] : ('00' + t[k]).substr(t[k].length));
+			}
+		}
+	}
+	return exp;
+};
+        """.trimIndent())
+
         // OkHttp 方法注入为 fetch()
         OkHttpToJS.instance.binding(jsBridge, "fetch")
         // Jsoup 方法注入为 class Document()
