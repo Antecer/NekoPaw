@@ -103,13 +103,10 @@ class OkHttpToJS private constructor() {
                 status = response.code.toString()
                 statusText = response.message
                 success = "ok"
-            } catch (e: SocketTimeoutException) {
-                Timber.tag("OkHttp").w("[TimeOut] ($url): $e")
-                error = "timeout"
             } catch (t: Throwable) {
                 t.printStackTrace()
-                Timber.tag("OkHttp").e("[ERROR] ($url): $t")
-                error = t.message ?: "Fetch出现未知错误"
+                error = t.stackTraceToString()
+                Timber.tag("OkHttp").e("[ERROR] ($url): $error")
             }
             val json = JSONObject()
             json.put("finalUrl", finalUrl)

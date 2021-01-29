@@ -3,13 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Hello,World</title>
     <script>
-        print = console.log
+        print = function(s){
+            document.querySelector('.benchmarks').innerHTML += `\n${s}`;
+            console.log(s);
+        }
     </script>
-    <script src="bechmarks.js"></script>
+    <script src="benchmarks.js"></script>
 </head>
 <body>
-    Hello,Word!
+<pre class="benchmarks">
+JS引擎benchmarks跑分测试:
+</pre>
 </body>
 </html>

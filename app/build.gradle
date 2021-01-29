@@ -56,10 +56,8 @@ dependencies {
     //协程
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.4.2"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.4.2"
-
     // 日志管理
     implementation 'com.jakewharton.timber:timber:4.7.1'
-
     // Oasis JsBridge (QuickJS flavor) 内置OkHttp引用
     implementation "de.prosiebensat1digital.oasis-jsbridge-android:oasis-jsbridge-quickjs:0.14.2"
     implementation "com.squareup.okhttp3:okhttp:4.9.0"
