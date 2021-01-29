@@ -1,0 +1,84 @@
+name: NekoPaw App
+
+on:
+  workflow_dispatch
+
+env:
+  # 是否发布Release
+  isRelease: 'false'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v2
+        with:
+          ref: main
+
+      - name: Set Up JDK
+        uses: actions/setup-java@v1
+        with:
+          java-version: 15
+
+      - name: Release Apk Sign
+        run: |
+          mv -f $GITHUB_WORKSPACE/.github/workflows/key.jks $GITHUB_WORKSPACE/app/key.jks
+          mv -f $GITHUB_WORKSPACE/.github/workflows/gradle.properties $GITHUB_WORKSPACE/app/gradle.properties
+          sed "s/maven { url 'https:\/\/maven.aliyun.com\/repository\/public' }/google()/"   $GITHUB_WORKSPACE/build.gradle -i
+          sed "s/maven { url 'https:\/\/maven.aliyun.com\/repository\/google' }/jcenter()/"  $GITHUB_WORKSPACE/build.gradle -i
+          sed "s/maven { url 'https:\/\/maven.aliyun.com\/repository\/gradle-plugin' }//"    $GITHUB_WORKSPACE/build.gradle -i
+          sed "/buildToolsVersion/i\    ndkVersion '21.3.6528147'"                           $GITHUB_WORKSPACE/app/build.gradle -i
+
+      - name: Build With Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload App To Artifact
+        if: ${{env.isRelease != 'true'}}
+        uses: actions/upload-artifact@v2
+        with:
+          name: NekoPaw
+          path: ${{ github.workspace }}/app/build/outputs/apk/release/*.apk
+
+      - name: Set Env
+        if: ${{env.isRelease == 'true'}}
+        run: |
+          path="$GITHUB_WORKSPACE/app/build/outputs/apk/release/"
+          files="$(ls $path)"
+          for f in $files
+          do
+           if [[ $f == *"apk" ]]; then
+            file=$f
+           fi
+          done
+          fileName="$(basename $file .apk)"
+          filePath="${path}${file}"
+          echo "APP_PATH=$filePath" >> $GITHUB_ENV
+          echo "APP_NAME=$fileName" >> $GITHUB_ENV
+
+      - name: Create Release
+        if: ${{env.isRelease == 'true'}}
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.APP_NAME }}
+          release_name: ${{ env.APP_NAME }}
+          body_path: ${{ github.workspace }}/updateLog.md
+          draft: false
+          prerelease: true
+
+      - name: Upload Release Asset
+        if: ${{env.isRelease == 'true'}}
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.APP_PATH }}
+          asset_name: ${{ env.APP_NAME }}.apk
+          asset_content_type: application/vnd.android.package-archive
