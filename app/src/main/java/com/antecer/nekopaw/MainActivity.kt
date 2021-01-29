@@ -40,8 +40,8 @@ class MainActivity : AppCompatActivity(),
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
         // 初始化JS引擎
-        //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
-        val js = assets.open("zwdu.js").readBytes().decodeToString()
+        val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
+        //val js = assets.open("zwdu.js").readBytes().decodeToString()
         GlobalScope.launch {
             JsEngine.instance.setLogout(mBinding.printBox)
             JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)

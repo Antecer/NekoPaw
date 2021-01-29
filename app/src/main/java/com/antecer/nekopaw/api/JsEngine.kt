@@ -3,6 +3,7 @@ package com.antecer.nekopaw.api
 import android.widget.TextView
 import de.prosiebensat1digital.oasisjsbridge.*
 import timber.log.Timber
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
@@ -68,12 +69,23 @@ class JsEngine private constructor() {
             """.trimIndent()
         )
 
-        // UrlEncoder 方法注入为 UrlEncoder()
-        JsValue.fromNativeFunction2(jsBridge) { source: String, charset: String? ->
-            URLEncoder.encode(source, charset ?: "utf-8")
-        }.assignToGlobal("UrlEncoder")
-        jsBridge.evaluateBlocking<Any>("console.debug('URLEncoder 方法已注入为 UrlEncoder')")
+        // URLEncoder 方法注入为 encodeURI()
+        JsValue.fromNativeFunction2(jsBridge) { src: String, enc: String? ->
+            URLEncoder.encode(src, enc ?: "utf-8")
+        }.assignToGlobal("encodeURI")
+        jsBridge.evaluateBlocking<Any>("""
+            String.prototype.encodeURI = function (charset) { return encodeURI(this, charset); }
+            console.debug('URLEncoder 方法已注入为 encodeURI');
+        """.trimIndent())
 
+        // URLDecoder 方法注入为 decodeURI()
+        JsValue.fromNativeFunction2(jsBridge) { src: String, enc: String? ->
+            URLDecoder.decode(src, enc ?: "utf-8")
+        }.assignToGlobal("decodeURI")
+        jsBridge.evaluateBlocking<Any>("""
+            String.prototype.decodeURI = function (charset) { return decodeURI(this, charset); }
+            console.debug('URLDecoder 方法已注入为 decodeURI');
+        """.trimIndent())
 
         // OkHttp 方法注入为 fetch()
         OkHttpToJS.instance.binding(jsBridge, "fetch")

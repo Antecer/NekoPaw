@@ -21,7 +21,7 @@ function search(searchKey) {
 	let response = fetch(`${baseObject.info.origin}/search/`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/x-www-form-urlencoded' },
-		body: `key=${UrlEncoder(searchKey, 'gbk')}`
+		body: `key=${encodeURI(searchKey, 'gbk')}`
 	});
 	let html = response.text();
 	let document = new Document(html);
