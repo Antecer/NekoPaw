@@ -23,8 +23,8 @@ jobs:
 
       - name: Release Apk Sign
         run: |
-          mv -f $GITHUB_WORKSPACE/.github/workflows/key.jks $GITHUB_WORKSPACE/app/key.jks
-          mv -f $GITHUB_WORKSPACE/.github/workflows/gradle.properties $GITHUB_WORKSPACE/app/gradle.properties
+          mv -f $GITHUB_WORKSPACE/.github/workflows/key.jks                                  $GITHUB_WORKSPACE/app/key.jks
+          mv -f $GITHUB_WORKSPACE/.github/workflows/gradle.properties                        $GITHUB_WORKSPACE/app/gradle.properties
           sed "s/maven { url 'https:\/\/maven.aliyun.com\/repository\/public' }/google()/"   $GITHUB_WORKSPACE/build.gradle -i
           sed "s/maven { url 'https:\/\/maven.aliyun.com\/repository\/google' }/jcenter()/"  $GITHUB_WORKSPACE/build.gradle -i
           sed "s/maven { url 'https:\/\/maven.aliyun.com\/repository\/gradle-plugin' }//"    $GITHUB_WORKSPACE/build.gradle -i
