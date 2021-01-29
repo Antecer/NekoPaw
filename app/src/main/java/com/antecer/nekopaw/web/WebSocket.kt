@@ -9,12 +9,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.Dispatchers.IO
 import java.io.IOException
 
-class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String):
-    NanoWSD.WebSocket(handshakeRequest),
-    CoroutineScope by MainScope(){
-
-    private fun cancelDebug() = JsEngine.instance.jsBridge.cancel()
-
+class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String) :
+    NanoWSD.WebSocket(handshakeRequest), CoroutineScope by MainScope() {
 
     override fun onOpen() {
         launch(IO) {
@@ -27,13 +23,8 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String):
         }
     }
 
-    override fun onClose(
-        code: NanoWSD.WebSocketFrame.CloseCode,
-        reason: String,
-        initiatedByRemote: Boolean
-    ) {
+    override fun onClose(code: NanoWSD.WebSocketFrame.CloseCode, reason: String, initiatedByRemote: Boolean) {
         cancel()
-        cancelDebug()
     }
 
     init {
@@ -46,7 +37,7 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String):
     private val otherUri = uri
 
     override fun onMessage(message: NanoWSD.WebSocketFrame) {
-        if (otherUri == "/runJS"){
+        if (otherUri == "/runJS") {
             val js = message.textPayload
             if (js.isEmpty()) return
             launch(IO) {
@@ -65,7 +56,7 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String):
     }
 
     override fun onException(exception: IOException) {
-        cancelDebug()
+
     }
 
 }

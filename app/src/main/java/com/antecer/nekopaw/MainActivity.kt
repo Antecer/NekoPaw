@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.api.JsEngine
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import com.antecer.nekopaw.web.NetworkUtils
+import com.antecer.nekopaw.web.WebHttpServer
 import com.antecer.nekopaw.web.WebSocketServer
 import kotlinx.coroutines.*
 import timber.log.Timber
@@ -15,8 +16,21 @@ import java.io.IOException
 
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
+
+    companion object {
+        @JvmStatic
+        lateinit var INSTANCE: MainActivity
+            private set
+
+        init {
+            // 用于在应用程序启动时加载"native-lib"库。
+            System.loadLibrary("native-lib")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        INSTANCE = this
 
         // 配置日志输出
         class ReleaseTree : Timber.Tree() {
@@ -60,28 +74,26 @@ class MainActivity : AppCompatActivity(),
             }
         })
 
-        // 配置WebSocket
+        // 配置Web服务器
         NetworkUtils.getLocalIPAddress()?.let { address ->
             try {
+                // 启动socket服务器
                 WebSocketServer(52345).start(1000 * 30 * 100)
                 mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:52345/runJS")
             } catch (e: IOException) {
                 e.printStackTrace()
             }
+            // 启动http服务器
+            WebHttpServer(58888).start()
+            mBinding.printBox.append("\n\n启动 webHttpServer\nhttp://${address.hostAddress}:58888")
         }
+
     }
 
     /**
      * 由"native-lib"原生库实现的方法,该库随此应用程序一起打包
      */
     external fun stringFromJNI(): String
-
-    companion object {
-        // 用于在应用程序启动时加载"native-lib"库。
-        init {
-            System.loadLibrary("native-lib")
-        }
-    }
 
     fun queryActions(searchKey: String) {
         launch {
@@ -95,9 +107,9 @@ class MainActivity : AppCompatActivity(),
                 }
                 Timber.tag("QuickJS").d("JS任务完成")
                 JsEngine.instance.jsBridge.evaluateNoRetVal("GlobalJsoup.dispose()") // 释放jsoup资源
+
             } catch (err: Exception) {
-                err.printStackTrace()
-                Timber.tag("QuickJS").e(err)
+                JsEngine.instance.jsBridge.evaluateNoRetVal("console.error(${err.stackTraceToString()})")
             }
         }
     }

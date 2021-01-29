@@ -99,7 +99,7 @@ function context(url) {
 	let response = fetch(url,{charset: "gbk"});
 	let html = response.text();
 	let document = new Document(html);
-	baseObject.context = document.querySelector('#content').textNodes().join(`\n　　`);
+	baseObject.context = document.querySelector('#content').textNodes().filter(w=>w).join(`\n　　`);
 	console.info(`正文解析完成\n${baseObject.context}`);
 }
 
