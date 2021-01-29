@@ -2,7 +2,6 @@ package com.antecer.nekopaw
 
 import android.os.Bundle
 import android.text.method.ScrollingMovementMethod
-import android.util.Log
 import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.api.JsEngine
@@ -41,8 +40,8 @@ class MainActivity : AppCompatActivity(),
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
         // 初始化JS引擎
-        val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
-        //val js = assets.open("zwdu.js").readBytes().decodeToString()
+        //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
+        val js = assets.open("zwdu.js").readBytes().decodeToString()
         GlobalScope.launch {
             JsEngine.instance.setLogout(mBinding.printBox)
             JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
@@ -97,6 +96,7 @@ class MainActivity : AppCompatActivity(),
                     JsEngine.instance.jsBridge.evaluateAsync<Any>("step[$index]()").await()
                 }
                 Timber.tag("QuickJS").d("JS任务完成")
+                JsEngine.instance.jsBridge.evaluateNoRetVal("GlobalJsoup.dispose()") // 释放jsoup资源
             } catch (err: Exception) {
                 err.printStackTrace()
                 Timber.tag("QuickJS").e(err)

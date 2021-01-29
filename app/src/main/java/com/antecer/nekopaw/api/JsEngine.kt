@@ -41,6 +41,9 @@ class JsEngine private constructor() {
     init {
         Timber.tag("JsEngine").d("JS引擎已加载!")
 
+        // 注入默认顶级类
+        jsBridge.evaluateNoRetVal("var global = globalThis; var window = globalThis;")
+
         // console 方法注入
         JsValue.fromNativeFunction2(jsBridge) { mode: String, msg: Any? ->
             when (mode[0].toLowerCase()) {
@@ -54,7 +57,7 @@ class JsEngine private constructor() {
         }.assignToGlobal("PrintLog")
         jsBridge.evaluateBlocking<Any>(
             """
-                const console = {
+                var console = {
                     debug: (msg) => PrintLog('d', msg),
                     log: (msg) => PrintLog('v', msg),
                     info: (msg) => PrintLog('i', msg),
@@ -70,6 +73,7 @@ class JsEngine private constructor() {
             URLEncoder.encode(source, charset ?: "utf-8")
         }.assignToGlobal("UrlEncoder")
         jsBridge.evaluateBlocking<Any>("console.debug('URLEncoder 方法已注入为 UrlEncoder')")
+
 
         // OkHttp 方法注入为 fetch()
         OkHttpToJS.instance.binding(jsBridge, "fetch")
