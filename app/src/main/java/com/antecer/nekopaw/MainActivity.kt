@@ -21,11 +21,6 @@ class MainActivity : AppCompatActivity(),
         @JvmStatic
         lateinit var INSTANCE: MainActivity
             private set
-
-        init {
-            // 用于在应用程序启动时加载"native-lib"库。
-            System.loadLibrary("native-lib")
-        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,8 +40,6 @@ class MainActivity : AppCompatActivity(),
 
         // 设置标题
         mBinding.toolbar.title = "猫爪"
-        // 调用原生方法的示例
-        mBinding.printBox.text = stringFromJNI()
         // 允许内容滚动
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
@@ -76,24 +69,21 @@ class MainActivity : AppCompatActivity(),
 
         // 配置Web服务器
         NetworkUtils.getLocalIPAddress()?.let { address ->
+            // 启动socket服务器
             try {
-                // 启动socket服务器
+                val socketPort = 52345
                 WebSocketServer(52345).start(1000 * 30 * 100)
-                mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:52345/runJS")
+                mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:$socketPort/runJS")
             } catch (e: IOException) {
                 e.printStackTrace()
             }
             // 启动http服务器
-            WebHttpServer(58888).start()
-            mBinding.printBox.append("\n\n启动 webHttpServer\nhttp://${address.hostAddress}:58888")
+            val httpPort = 8888
+            WebHttpServer(httpPort).start()
+            mBinding.printBox.append("\n\n启动 webHttpServer\nhttp://${address.hostAddress}:$httpPort")
         }
 
     }
-
-    /**
-     * 由"native-lib"原生库实现的方法,该库随此应用程序一起打包
-     */
-    external fun stringFromJNI(): String
 
     fun queryActions(searchKey: String) {
         launch {
