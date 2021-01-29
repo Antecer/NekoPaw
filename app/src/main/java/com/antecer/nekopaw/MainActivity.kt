@@ -16,8 +16,6 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import timber.log.Timber.DebugTree
 import java.io.IOException
-import java.lang.Exception
-
 
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
@@ -25,10 +23,12 @@ class MainActivity : AppCompatActivity(),
         super.onCreate(savedInstanceState)
 
         // 配置日志输出
-        class CrashReportingTree : Timber.Tree() {
-            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {}
-        }
-        Timber.plant(if (BuildConfig.DEBUG) DebugTree() else CrashReportingTree())
+        Timber.plant(DebugTree())
+//        class CrashReportingTree : Timber.Tree() {
+//            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {}
+//        }
+//        Timber.plant(if (BuildConfig.DEBUG) DebugTree() else CrashReportingTree())
+
 
         // 绑定视图
         val mBinding = ActivityMainBinding.inflate(layoutInflater)
@@ -41,14 +41,6 @@ class MainActivity : AppCompatActivity(),
         // 允许内容滚动
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
-        // 初始化JS引擎
-        val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
-        GlobalScope.launch {
-            JsEngine.instance.setLogout(mBinding.printBox)
-            JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
-            Timber.tag("QuickJS").d("载入JS完成")
-        }
-
         // 配置WebSocket
         NetworkUtils.getLocalIPAddress()?.let { address ->
             try {
@@ -57,6 +49,15 @@ class MainActivity : AppCompatActivity(),
             } catch (e: IOException) {
                 e.printStackTrace()
             }
+        }
+
+        // 初始化JS引擎
+        //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
+        val js = assets.open("zwdu.js").readBytes().decodeToString()
+        GlobalScope.launch {
+            JsEngine.instance.setLogout(mBinding.printBox)
+            JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
+            Timber.tag("QuickJS").d("载入JS完成")
         }
 
         // 绑定搜索事件
@@ -89,13 +90,12 @@ class MainActivity : AppCompatActivity(),
     fun queryActions(searchKey: String) {
         launch {
             try {
-                val jsEngine = JsEngine.instance
-                jsEngine.clearLogView()
-                val stepCount: Int = jsEngine.jsBridge.evaluate("parseInt(step.length)")
-                jsEngine.clearTimer()
-                jsEngine.jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
+                JsEngine.instance.clearLogView()
+                val stepCount: Int = JsEngine.instance.jsBridge.evaluate("parseInt(step.length)")
+                JsEngine.instance.clearTimer()
+                JsEngine.instance.jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
                 for (index in 1 until stepCount) {
-                    jsEngine.jsBridge.evaluateAsync<Any>("step[$index]()").await()
+                    JsEngine.instance.jsBridge.evaluateAsync<Any>("step[$index]()").await()
                 }
                 Timber.tag("QuickJS").d("JS任务完成")
             } catch (err: Exception) {

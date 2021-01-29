@@ -9,6 +9,7 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:4.1.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.android.tools.build:gradle'
 
         // 注意: 不要在此处放置应用程序依赖项；它们属于单独的模块build.gradle文件
     }

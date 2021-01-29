@@ -14,7 +14,7 @@ var baseObject = {
 
 // 搜索页
 function search(searchKey) {
-	console.info(`开始搜索关键字 ${searchKey}`);
+	console.info(`开始搜索关键字 ${searchKey}\n${baseObject.info.origin}/search.php?keyword=${searchKey}`);
 	let response = fetch(`${baseObject.info.origin}/search.php?keyword=${searchKey}`);
 	let html = response.text();
 	let document = new Document(html);
@@ -52,7 +52,7 @@ function search(searchKey) {
 var isChapterHtml = '';
 function detail(url) {
 	console.info(`开始获取详情页 ${url}`);
-	let response = fetch(url);
+	let response = fetch(url,{charset: "gbk"});
 	let html = response.text();
 	document = new Document(html);
 	console.info('成功获取结果');
@@ -78,7 +78,7 @@ function chapter(url) {
 	let html = isChapterHtml;
 	if (!html) {
 		console.info(`开始获取目录页 ${url}`);
-		let response = fetch(url);
+		let response = fetch(url,{charset: "gbk"});
 		html = response.text();
 	}
 	//let document = new Document(html);
@@ -95,7 +95,7 @@ function chapter(url) {
 // 正文页
 function context(url) {
 	console.info(`开始获取正文页 ${url}`);
-	let response = fetch(url);
+	let response = fetch(url,{charset: "gbk"});
 	let html = response.text();
 	let document = new Document(html);
 	baseObject.context = document.querySelector('#content').textNodes().join(`\n　　`);
@@ -103,4 +103,4 @@ function context(url) {
 }
 
 // 需要交给App调用的任务链(必要)
-step = [(sKey) => search(sKey), () => detail(baseObject.info.origin + baseObject.search[0].url), () => chapter(baseObject.detail.url), () => context(baseObject.info.origin + baseObject.chapter[0].url)];
+step = [(sKey) => search(sKey), () => detail(baseObject.search[0].url), () => chapter(baseObject.detail.url), () => context(baseObject.info.origin + baseObject.chapter[0].url)];

@@ -106,17 +106,6 @@ function chapter(url) {
 	if (hider) {
 		let p = Math.ceil(hider[0].match(/\d+/)[0] / 900);
 		console.info(`开始获取隐藏章节,共 ${p} 页`);
-		// 顺序请求
-		// let bodyList = [];
-		// for (let i = 1; i <= p; ++i) bodyList.push(`action=list&bid=${bid}&page=${i}`);
-		// let bArr = fetch(`https://www.zhaishuyuan.com/api/`, {
-		// 	method: 'POST',
-		// 	headers: {
-		// 		'content-type': 'application/x-www-form-urlencoded'
-		// 	},
-		// 	bodys: bodyList
-		// }).json();
-		// bArr.forEach((b) => Array.prototype.push.apply(baseObject.chapters, b.data));
 		// 并发请求
 		let fetchList = [];
 		for (let i = 1; i <= p; ++i) {
@@ -129,7 +118,7 @@ function chapter(url) {
 				}
 			]);
 		}
-		let bArr = fetchAll(fetchList, 5); // 允许重试5次
+		let bArr = fetchAll(fetchList, 5); // fetchAll返回请求结果组成的数组,允许重试5次
 		bArr.forEach((b, i) => {
 			if (b) Array.prototype.push.apply(baseObject.chapters, JSON.parse(b).data);
 			else console.info(`第 ${i} 页请求失败!`);

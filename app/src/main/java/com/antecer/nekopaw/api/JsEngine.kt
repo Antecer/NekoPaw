@@ -1,9 +1,7 @@
 package com.antecer.nekopaw.api
 
 import android.widget.TextView
-import de.prosiebensat1digital.oasisjsbridge.JsBridge
-import de.prosiebensat1digital.oasisjsbridge.JsBridgeConfig
-import de.prosiebensat1digital.oasisjsbridge.JsValue
+import de.prosiebensat1digital.oasisjsbridge.*
 import timber.log.Timber
 import java.net.URLEncoder
 import java.text.SimpleDateFormat

@@ -3,14 +3,17 @@ package com.antecer.nekopaw.api
 import android.os.SystemClock.sleep
 import de.prosiebensat1digital.oasisjsbridge.*
 import okhttp3.*
-import org.json.JSONArray
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.nio.charset.Charset
 import java.util.*
 import java.util.concurrent.TimeUnit
 import kotlin.collections.ArrayList
+
 
 /**
  * 连接 OkHttp 和 QuickJS(JsBridge)
@@ -24,7 +27,8 @@ class OkHttpToJS private constructor() {
     }
 
     // 创建 OkHttp 对象
-    val client: OkHttpClient = OkHttpClient().newBuilder().connectTimeout(3, TimeUnit.SECONDS).build()
+    val client: OkHttpClient =
+        OkHttpClient().newBuilder().connectTimeout(3, TimeUnit.SECONDS).build()
 
     /**
      * 包装 okHttp 方法
@@ -41,37 +45,38 @@ class OkHttpToJS private constructor() {
             var statusText = ""
             var error = ""
             var success = ""
-            val failList = ArrayList<String>()  // 保存请求失败的 url
-            val textList = ArrayList<String>()  // 保存请求成功的 response.body().string()
+            var responseBody = ""  // 保存请求成功的 response.body().string()
             try {
                 // 设置请求模式
                 var method = "GET"
                 // 设置默认 User-Agent
-                val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
+                val defAgent =
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
                 // 创建请求头构造器
                 val headerBuilder = Headers.Builder().add("user-agent", defAgent)
                 // 设置请求类型
-                var mediaType = "application/x-www-form-urlencoded"
-                // 创建请求数据容器
-                val bodyList = ArrayList<String>()
+                var mediaType = "application/x-www-form-urlencoded".toMediaType()
+                // 创建请求体
+                var sendBody = ""
+                // 指定返回页面解码字符集(自动判断可能不准确)
+                var charset: Charset? = null
                 // 分析请求参数
                 params?.toPayloadObject()?.let { paramMap ->
                     for (key in paramMap.keys) {
                         when (key.toLowerCase(Locale.US)) {
+                            "charset" -> paramMap.getString(key)?.let { charset = Charset.forName(it) }
                             "method" -> paramMap.getString(key)?.let { method = it }
-                            "body" -> paramMap.getString(key)?.let { bodyList.add(it) }
-                            "bodys" -> {
-                                paramMap.getArray(key)?.let { bodyArr ->
-                                    for (i in 0 until bodyArr.count) bodyArr.getString(i)?.let { bodyList.add(it) }
-                                }
-                            }
+                            "body" -> paramMap.getString(key)?.let { sendBody = it }
                             "headers" -> {
                                 paramMap.getObject(key)?.let { headers ->
                                     for (head in headers.keys) {
                                         headers.getString(head)?.let { value ->
                                             when (head.toLowerCase(Locale.US)) {
-                                                "content-type" -> mediaType = value
-                                                "user-agent" -> headerBuilder.removeAll(head).add(head, value)
+                                                "content-type" -> mediaType = value.toMediaType()
+                                                "user-agent" -> headerBuilder.removeAll(head).add(
+                                                    head,
+                                                    value
+                                                )
                                                 else -> headerBuilder.add(head, value)
                                             }
                                         }
@@ -82,25 +87,23 @@ class OkHttpToJS private constructor() {
                         }
                     }
                 }
-                if (bodyList.size == 0) bodyList.add("")
-                for (body in bodyList) {
-                    val requestBuilder = if (method == "GET") {
-                        Request.Builder().url("$url?${body}").get()
-                    } else {
-                        Request.Builder().url(url).post(RequestBody.create(MediaType.parse(mediaType), body))
-                    }
-                    val response = client.newCall(requestBuilder.headers(headerBuilder.build()).build()).execute()
-                    if (response.code() == 200) {
-                        textList.add(response.body()!!.string())
-                    } else {
-                        failList.add("$method:$url?$body")
-                        Timber.tag("OkHttp").d("[Failed] $method: $url?$body")
-                        Timber.tag("OkHttp").d("Code: ${response.code()} | Msg: ${response.message()}")
-                    }
-                    finalUrl = response.request().url().toString()
-                    status = response.code().toString()
-                    statusText = response.message()
+                val requestBuilder = Request.Builder().url(url).headers(headerBuilder.build())
+                when (method) {
+                    "POST" -> requestBuilder.post(sendBody.toRequestBody(mediaType))
+                    else -> requestBuilder.get()
                 }
+                val response = client.newCall(requestBuilder.build()).execute()
+                if (response.code != 200) {
+                    val callBody = if (method == "GET") "" else "?$sendBody"
+                    Timber.tag("OkHttp").d("[${response.code}] $method: $url$callBody")
+                }
+
+                responseBody = response.body?.let {
+                    if (charset != null) String(it.bytes(), charset!!); else it.string()
+                } ?: ""
+                finalUrl = response.request.url.toString()
+                status = response.code.toString()
+                statusText = response.message
                 success = "ok"
             } catch (e: SocketTimeoutException) {
                 Timber.tag("OkHttp").w("[TimeOut] ($url): $e")
@@ -116,12 +119,7 @@ class OkHttpToJS private constructor() {
             json.put("statusText", statusText)
             json.put("error", error)
             json.put("success", success)
-            val textArr = JSONArray()
-            textList.forEach { T -> textArr.put(T) }
-            val failArr = JSONArray()
-            failList.forEach { T -> failArr.put(T) }
-            json.put("textArr", textArr)
-            json.put("failArr", failArr)
+            json.put("result", responseBody)
             return json.toString()
         }
 
@@ -130,31 +128,40 @@ class OkHttpToJS private constructor() {
          * @param actions fetch请求参数,例: [[[url,{...params}]],...]
          * @param retryNum 请求失败的重试次数
          */
-        fun fetchAll(actions: JsonObjectWrapper, retryNum: Int = 3, multiCall: Int = 5): Array<String?> {
+        fun fetchAll(
+            actions: JsonObjectWrapper,
+            retryNum: Int = 3,
+            multiCall: Int = 5
+        ): Array<String?> {
             val retrySet = if (retryNum > 0) retryNum else 3    // 设置重试次数
             val multiCal = if (multiCall > 0) multiCall else 5  // 设置并发连接数
-            client.dispatcher().maxRequestsPerHost = multiCal   // 修改 okHttp 并发数(默认5)
+            client.dispatcher.maxRequestsPerHost = multiCal     // 修改 okHttp 并发数(默认5)
             val urlList = ArrayList<String?>()
             val methodList = ArrayList<String>()
             val headersList = ArrayList<Headers>()
             val mediaTypeList = ArrayList<MediaType>()
             val sendBodyList = ArrayList<String>()
+            val charsetList = ArrayList<Charset?>()
             // 解析网络请求参数
             val readParams = { work: PayloadArray? ->
                 // 设置请求模式
                 var method = "GET"
                 // 设置默认 User-Agent
-                val defAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
+                val defAgent =
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.141 Safari/537.36"
                 // 创建请求头构造器
                 val headersBuilder = Headers.Builder().add("user-agent", defAgent)
                 // 设置请求类型
                 var mediaType = "application/x-www-form-urlencoded"
                 // 创建请求体
                 var sendBody = ""
+                // 指定返回页面解码字符集(自动判断可能不准确)
+                var charset: Charset? = null
                 // 分析请求参数
                 work?.getObject(1)?.let { params ->
                     for (key in params.keys) {
                         when (key.toLowerCase(Locale.US)) {
+                            "charset" -> params.getString(key)?.let { charset = Charset.forName(it) }
                             "method" -> params.getString(key)?.let { method = it }
                             "body" -> params.getString(key)?.let { sendBody = it }
                             "headers" -> {
@@ -163,7 +170,10 @@ class OkHttpToJS private constructor() {
                                         headers.getString(head)?.let { value ->
                                             when (head.toLowerCase(Locale.US)) {
                                                 "content-type" -> mediaType = value
-                                                "user-agent" -> headersBuilder.removeAll(head).add(head, value)
+                                                "user-agent" -> headersBuilder.removeAll(head).add(
+                                                    head,
+                                                    value
+                                                )
                                                 else -> headersBuilder.add(head, value)
                                             }
                                         }
@@ -178,8 +188,9 @@ class OkHttpToJS private constructor() {
                 urlList.add(work?.getString(0))
                 methodList.add(method)
                 headersList.add(headersBuilder.build())
-                mediaTypeList.add(MediaType.get(mediaType))
+                mediaTypeList.add(mediaType.toMediaType())
                 sendBodyList.add(sendBody)
+                charsetList.add(charset)
             }
 
             try {
@@ -195,12 +206,15 @@ class OkHttpToJS private constructor() {
                     client.newCall(request).enqueue(object : Callback {
                         // 请求成功的回调函数
                         override fun onResponse(call: Call, response: Response) {
-                            if (response.code() == 200) {
-                                Timber.tag("OkHttpAsync").i("[200] ${response.request().url()}?${sendBodyList[resIndex]}")
-                                resultsText[resIndex] = response.body()?.string()!!
+                            if (response.code == 200) {
+                                Timber.tag("OkHttpAsync").i("[200] ${response.request.url}?${sendBodyList[resIndex]}")
+                                resultsText[resIndex] = response.body?.let {
+                                    val charset = charsetList[resIndex]
+                                    if (charset != null) String(it.bytes(), charset!!); else it.string()
+                                } ?: ""
                                 --actionsStep
                             } else {
-                                Timber.tag("OkHttpAsync").i("[${response.code()}] ${request.url()}?${sendBodyList[resIndex]}\n${response.message()}")
+                                Timber.tag("OkHttpAsync").i("[${response.code}] ${request.url}?${sendBodyList[resIndex]}\n${response.message}")
                                 val retryAgain = retryCount - 1
                                 if (retryAgain > 0) {
                                     sleep(100); callAsync(request, resIndex, retryAgain)
@@ -212,7 +226,7 @@ class OkHttpToJS private constructor() {
 
                         // 网络错误的回调函数
                         override fun onFailure(call: Call, e: IOException) {
-                            Timber.tag("OkHttpAsync").i("[Failed] ${request.url()}?${sendBodyList[resIndex]}\n$e")
+                            Timber.tag("OkHttpAsync").i("[Failed] ${request.url}?${sendBodyList[resIndex]}\n$e")
                             val retryAgain = retryCount - 1
                             if (retryAgain > 0) {
                                 sleep(100); callAsync(request, resIndex, retryAgain)
@@ -226,13 +240,18 @@ class OkHttpToJS private constructor() {
                 // 循环添加网络请求任务
                 for (i in 0 until actionCount) {
                     readParams(actionArr?.getArray(i))
-                    if (urlList[i] == null) continue
-                    val requestBuilder = Request.Builder()
-                    when (methodList[i]) {
-                        "POST" -> requestBuilder.url(urlList[i]!!).post(RequestBody.create(mediaTypeList[i], sendBodyList[i]))
-                        else -> requestBuilder.url("${urlList[i]}?${sendBodyList[i]}").get()
+                    urlList[i]?.let { url ->
+                        val requestBuilder = Request.Builder().url(url).headers(headersList[i])
+                        when (methodList[i]) {
+                            "POST" -> requestBuilder.post(
+                                sendBodyList[i].toRequestBody(
+                                    mediaTypeList[i]
+                                )
+                            )
+                            else -> requestBuilder.get()
+                        }
+                        callAsync(requestBuilder.build(), i, retrySet)
                     }
-                    callAsync(requestBuilder.build(), i, retrySet)
                 }
                 // 等待网络请求完成
                 while (actionsStep > 0) sleep(100)
@@ -257,18 +276,16 @@ class OkHttpToJS private constructor() {
         val jsAPI = """
              class GlobalFetch {
                 constructor(url, params) {
-                    this.returnArr = params&&params.bodys ? true : false;
                     let FetchRes = JSON.parse(GlobalOkHttp.fetch(url, params));
                     this.finalUrl = FetchRes.finalUrl;
                     this.status = FetchRes.status;
                     this.statusText = FetchRes.statusText;
                     this.error = FetchRes.error;
                     this.success = FetchRes.success;
-                    this.textArr = FetchRes.textArr;
-                    this.failArr = FetchRes.failArr;
+                    this.result = FetchRes.result;
                 }
-                text() { return this.returnArr ? this.textArr : this.textArr[0]; }
-                json() { return this.returnArr ? this.textArr.map(t=>JSON.parse(t)) : JSON.parse(this.textArr[0]); }
+                text() { return this.result; }
+                json() { return JSON.parse(this.result); }
             }
             const $apiName = (url, params) => new GlobalFetch(url, params || null);
             const ${apiName}All = (fetchArray, retryNum, multiCall) => GlobalOkHttp.fetchAll(fetchArray, retryNum, multiCall);
