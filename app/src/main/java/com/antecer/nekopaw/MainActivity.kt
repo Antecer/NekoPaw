@@ -8,10 +8,7 @@ import com.antecer.nekopaw.api.JsEngine
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import com.antecer.nekopaw.web.NetworkUtils
 import com.antecer.nekopaw.web.WebSocketServer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import timber.log.Timber
 import timber.log.Timber.DebugTree
 import java.io.IOException
@@ -40,8 +37,8 @@ class MainActivity : AppCompatActivity(),
         mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
         // 初始化JS引擎
-        val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
-        //val js = assets.open("zwdu.js").readBytes().decodeToString()
+        //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
+        val js = assets.open("zwdu.js").readBytes().decodeToString()
         GlobalScope.launch {
             JsEngine.instance.setLogout(mBinding.printBox)
             JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
@@ -52,6 +49,7 @@ class MainActivity : AppCompatActivity(),
         mBinding.search.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(inputText: String?): Boolean {
                 if (inputText != null) {
+                    mBinding.search.clearFocus() // 事件触发后取消焦点,防止事件被多次触发
                     queryActions(inputText)
                 }
                 return false

@@ -80,9 +80,10 @@ function chapter(url) {
 		console.info(`开始获取目录页 ${url}`);
 		let response = fetch(url,{charset: "gbk"});
 		html = response.text();
+		console.info('成功获取目录页');
+	} else {
+	    console.info('成功获取目录页(与详情页相同)');
 	}
-	//let document = new Document(html);
-	console.info('成功获取目录页');
 
 	let reg = 'dd><a href="([^"]+)[^>]+>([^<]+)';
 	baseObject.chapter = html.match(new RegExp(reg, 'g')).map((item) => {
