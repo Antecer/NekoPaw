@@ -10,6 +10,7 @@ import com.antecer.nekopaw.web.NetworkUtils
 import com.antecer.nekopaw.web.WebHttpServer
 import com.antecer.nekopaw.web.WebSocketServer
 import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers.IO
 import timber.log.Timber
 import timber.log.Timber.DebugTree
 import java.io.IOException
@@ -21,11 +22,19 @@ class MainActivity : AppCompatActivity(),
         @JvmStatic
         lateinit var INSTANCE: MainActivity
             private set
+
+        @JvmStatic
+        lateinit var UI: ActivityMainBinding
+            private set
+
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         INSTANCE = this
+        // 绑定视图
+        UI = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(UI.root)
 
         // 配置日志输出
         class ReleaseTree : Timber.Tree() {
@@ -34,29 +43,31 @@ class MainActivity : AppCompatActivity(),
         }
         Timber.plant(if (BuildConfig.DEBUG) DebugTree() else ReleaseTree())
 
-        // 绑定视图
-        val mBinding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(mBinding.root)
 
         // 设置标题
-        mBinding.toolbar.title = "猫爪"
+        UI.toolbar.title = "猫爪"
         // 允许内容滚动
-        mBinding.printBox.movementMethod = ScrollingMovementMethod.getInstance()
+        UI.printBox.movementMethod = ScrollingMovementMethod.getInstance()
 
         // 初始化JS引擎
         //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
         val js = assets.open("zwdu.js").readBytes().decodeToString()
         GlobalScope.launch {
-            JsEngine.instance.setLogout(mBinding.printBox)
-            JsEngine.instance.jsBridge.evaluateBlocking<Any>(js)
+            JsEngine.ins.tag("main").setLogOut { msg ->
+                UI.printBox.post {
+                    UI.printBox.append("$msg\n")
+                }
+            }
+            JsEngine.ins.tag("main").jsBridge.evaluateBlocking<Any>(js)
             Timber.tag("QuickJS").d("载入JS完成")
         }
 
         // 绑定搜索事件
-        mBinding.search.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+        UI.search.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(inputText: String?): Boolean {
                 if (inputText != null) {
-                    mBinding.search.clearFocus() // 事件触发后取消焦点,防止事件被多次触发
+                    UI.search.clearFocus() // 事件触发后取消焦点,防止事件被多次触发
+                    UI.printBox.text = ""  // 清空日志输出
                     queryActions(inputText)
                 }
                 return false
@@ -73,34 +84,32 @@ class MainActivity : AppCompatActivity(),
             try {
                 val socketPort = 52345
                 WebSocketServer(52345).start(1000 * 30 * 100)
-                mBinding.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:$socketPort/runJS")
+                UI.printBox.append("\n\n启动 webSocketServer\nws://${address.hostAddress}:$socketPort/runJS")
             } catch (e: IOException) {
                 e.printStackTrace()
             }
             // 启动http服务器
             val httpPort = 8888
             WebHttpServer(httpPort).start()
-            mBinding.printBox.append("\n\n启动 webHttpServer\nhttp://${address.hostAddress}:$httpPort")
+            UI.printBox.append("\n\n启动 webHttpServer\nhttp://${address.hostAddress}:$httpPort")
         }
 
     }
 
     fun queryActions(searchKey: String) {
-        launch {
+        launch(IO) {
+            val jsManager = JsEngine.ins.tag("main")
             try {
-                JsEngine.instance.clearLogView()
-                val stepCount: Int = JsEngine.instance.jsBridge.evaluate("parseInt(step.length)")
-                JsEngine.instance.clearTimer()
-                JsEngine.instance.jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
+                val stepCount: Int = jsManager.jsBridge.evaluate("parseInt(step.length)")
+                jsManager.jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
                 for (index in 1 until stepCount) {
-                    JsEngine.instance.jsBridge.evaluateAsync<Any>("step[$index]()").await()
+                    jsManager.jsBridge.evaluateAsync<Any>("step[$index]()").await()
                 }
-                Timber.tag("QuickJS").d("JS任务完成")
-                JsEngine.instance.jsBridge.evaluateNoRetVal("GlobalJsoup.dispose()") // 释放jsoup资源
-
             } catch (err: Exception) {
-                JsEngine.instance.jsBridge.evaluateNoRetVal("console.error(${err.stackTraceToString()})")
+                jsManager.jsBridge.evaluateNoRetVal("console.error(${err.stackTraceToString()})")
             }
+            Timber.tag("QuickJS").d("JS任务完成")
+            jsManager.disposeJsoup()    // 释放jsoup占用的资源
         }
     }
 }

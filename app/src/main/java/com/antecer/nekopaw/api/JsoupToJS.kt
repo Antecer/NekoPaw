@@ -13,21 +13,23 @@ import org.jsoup.select.Elements
  * 连接 Jsoup 和 QuickJS(JsBridge)
  */
 @Suppress("unused")
-class JsoupToJS private constructor() {
-    companion object {
-        val instance: JsoupToJS by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
-            JsoupToJS()
-        }
-    }
+class JsoupToJS {
+    val aMap = mutableMapOf<String, Document>()
+    val bMap = mutableMapOf<String, Element>()
+    val cMap = mutableMapOf<String, Elements>()
 
+    /**
+     * 释放 jsoup 占用的资源
+     */
+    fun dispose() {
+        aMap.clear()
+        bMap.clear()
+        cMap.clear()
+    }
     /**
      * 包装 jsoup 方法
      */
     private val jsoupKtApi = object : JsToNativeInterface {
-        val aMap = mutableMapOf<String, Document>()
-        val bMap = mutableMapOf<String, Element>()
-        val cMap = mutableMapOf<String, Elements>()
-
         fun parse(html: String): String {
             val key = "a${aMap.size}"
             aMap[key] = Jsoup.parse(html)
@@ -197,13 +199,6 @@ class JsoupToJS private constructor() {
 
         fun queryBefore(base: String, trait: String, html: String) {
             aMap[base]?.select(trait)?.before(html)
-        }
-
-        // 释放占用的资源
-        fun dispose() {
-            aMap.clear()
-            bMap.clear()
-            cMap.clear()
         }
     }
 

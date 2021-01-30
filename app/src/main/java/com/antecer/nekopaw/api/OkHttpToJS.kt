@@ -8,7 +8,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import timber.log.Timber
 import java.io.IOException
-import java.net.SocketTimeoutException
 import java.nio.charset.Charset
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -97,8 +96,21 @@ class OkHttpToJS private constructor() {
                     val callBody = if (method == "GET") "" else "?$sendBody"
                     Timber.tag("OkHttp").d("[${response.code}] $method: $url$callBody")
                 }
-
-                responseBody = response.body?.let { body -> charset?.let { String(body.bytes(), it) } ?: body.string() } ?: ""
+                // 识别Charset并解码内容
+                responseBody = response.body?.let { body ->
+                    val bodyBytes = body.bytes()
+                    charset = charset ?: body.contentType()?.charset()
+                    if (charset == null) {
+                        val initText = String(bodyBytes).toLowerCase(Locale.US)
+                        var charIndex = initText.indexOf("charset=")
+                        if (charIndex > 0) {
+                            charIndex += if (initText[charIndex + 8] == '"') 9 else 8
+                            val charEnd = initText.indexOf('"', charIndex)
+                            if (charEnd > 0) charset = Charset.forName(initText.substring(charIndex, charEnd))
+                        }
+                    }
+                    String(bodyBytes, charset ?: Charsets.UTF_8)
+                } ?: ""
                 finalUrl = response.request.url.toString()
                 status = response.code.toString()
                 statusText = response.message
@@ -199,10 +211,20 @@ class OkHttpToJS private constructor() {
                         override fun onResponse(call: Call, response: Response) {
                             if (response.code == 200) {
                                 Timber.tag("OkHttpAsync").i("[200] ${response.request.url}?${sendBodyList[resIndex]}")
-
+                                // 识别Charset并解码内容
                                 resultsText[resIndex] = response.body?.let { body ->
-                                    val charset = charsetList[resIndex]
-                                    charset?.let { String(body.bytes(), it) } ?: body.string()
+                                    val bodyBytes = body.bytes()
+                                    var charset = charsetList[resIndex] ?: body.contentType()?.charset()
+                                    if (charset == null) {
+                                        val initText = String(bodyBytes).toLowerCase(Locale.US)
+                                        var charIndex = initText.indexOf("charset=")
+                                        if (charIndex > 0) {
+                                            charIndex += if (initText[charIndex + 8] == '"') 9 else 8
+                                            val charEnd = initText.indexOf('"', charIndex)
+                                            if (charEnd > 0) charset = Charset.forName(initText.substring(charIndex, charEnd))
+                                        }
+                                    }
+                                    String(bodyBytes, charset ?: Charsets.UTF_8)
                                 } ?: ""
                                 --actionsStep
                             } else {

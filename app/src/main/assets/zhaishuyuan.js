@@ -12,12 +12,19 @@ var baseObject = {
 	context: ''
 };
 
+var debugTime = new Date();
+var printLog = (msg, start) => {
+	let thisTime = new Date();
+	if (start) debugTime = thisTime;
+	console.info(new Date(thisTime - debugTime).format('[mm:ss.fff]') + msg);
+};
+
 // 判断详情页
 var isDetailHtml = '';
 
 // 搜索页
 function search(searchKey) {
-	console.info(`开始搜索关键字 ${searchKey}`);
+	printLog(`开始搜索关键字 ${searchKey}`);
 	let response = fetch(`${baseObject.info.origin}/search/`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -25,16 +32,16 @@ function search(searchKey) {
 	});
 	let html = response.text();
 	let document = new Document(html);
-	console.info('成功获取结果');
+	printLog('成功获取结果');
 
 	baseObject.search = [];
 	let searchList = document.querySelectorAll('#sitembox dl');
 	let titleList = searchList.queryAllText('h3>a');
-	console.info(`解析到 ${titleList.length} 个结果`);
+	printLog(`解析到 ${titleList.length} 个结果`);
 	if (titleList.length == 0) {
 		isDetailHtml = html;
 		baseObject.search.push({ url: response.finalUrl });
-		console.info(`尝试作为详情页解析`);
+		printLog(`尝试作为详情页解析`);
 		return;
 	}
 	let authorList = searchList.queryAllText('span:nth-child(1)');
@@ -58,20 +65,20 @@ function search(searchKey) {
 			url: urlList[i]
 		});
 	}
-	console.info(`搜索页解析完成\n${JSON.stringify(baseObject.search[0])}\n`);
+	printLog(`搜索页解析完成\n${JSON.stringify(baseObject.search[0])}\n`);
 }
 
 // 详情页
 function detail(url) {
 	let html = isDetailHtml;
 	if (!html) {
-		console.info(`开始获取详情页 ${url}`);
+		printLog(`开始获取详情页 ${url}`);
 		let response = fetch(url);
 		html = response.text();
 	}
 	let document = new Document(html);
 	isDetailHtml = ''; // 跳转标志使用后清空
-	console.info('成功获取详情页');
+	printLog('成功获取详情页');
 
 	baseObject.detail = {
 		title: document.queryAttr('[property="og:novel:book_name"]', 'content'),
@@ -85,16 +92,16 @@ function detail(url) {
 		url: document.queryAttr('[property="og:novel:read_url"]', 'content')
 	};
 	isDetail = '';
-	console.info(`详情页解析完成\n${JSON.stringify(baseObject.detail)}\n`);
+	printLog(`详情页解析完成\n${JSON.stringify(baseObject.detail)}\n`);
 }
 
 // 目录页
 function chapter(url) {
-	console.info(`开始获取目录页 ${url}`);
+	printLog(`开始获取目录页 ${url}`);
 	let response = fetch(url);
 	let html = response.text();
 	//let document = new Document(html);
-	console.info('成功获取结果');
+	printLog('成功获取结果');
 
 	let bid = parseInt(html.match(/data-bid="(\d+)/)[1]);
 	let reg = 'href="/chapter/[^/]+/([^"]+)[^>]+>([^<]+)[^>]+>([^<]+)';
@@ -105,7 +112,7 @@ function chapter(url) {
 	let hider = html.match(/查看隐藏章节[^<]+/);
 	if (hider) {
 		let p = Math.ceil(hider[0].match(/\d+/)[0] / 900);
-		console.info(`开始获取隐藏章节,共 ${p} 页`);
+		printLog(`开始获取隐藏章节,共 ${p} 页`);
 		// 并发请求
 		let fetchList = [];
 		for (let i = 1; i <= p; ++i) {
@@ -121,9 +128,9 @@ function chapter(url) {
 		let bArr = fetchAll(fetchList, 5); // fetchAll返回请求结果组成的数组,允许重试5次
 		bArr.forEach((b, i) => {
 			if (b) Array.prototype.push.apply(baseObject.chapters, JSON.parse(b).data);
-			else console.info(`第 ${i} 页请求失败!`);
+			else printLog(`第 ${i} 页请求失败!`);
 		});
-		console.info('成功获取隐藏章节');
+		printLog('成功获取隐藏章节');
 	}
 	baseObject.chapters = baseObject.chapters
 		.sort((a, b) => (a.id < b.id ? -1 : 1))
@@ -131,26 +138,26 @@ function chapter(url) {
 			item.id = '/chapter/' + bid + '/' + (item.id - bid);
 			return { title: item.cN, time: item.uT, url: item.id };
 		});
-	console.info(`目录页解析完成,共 ${baseObject.chapters.length} 章\n第一章: ${JSON.stringify(baseObject.chapters[0])}\n`);
+	printLog(`目录页解析完成,共 ${baseObject.chapters.length} 章\n第一章: ${JSON.stringify(baseObject.chapters[0])}\n`);
 }
 
 // 正文页
 function context(url) {
-	console.info(`开始获取正文页 ${url}`);
+	printLog(`开始获取正文页 ${url}`);
 	let response = fetch(url);
 	let html = response.text();
 	let document = new Document(html);
-	console.info('成功获取结果');
+	printLog('成功获取结果');
 
 	$ = (s) => document.select(s);
 	let f = html.match(/function getDecode[^<]+/);
 	if (f) {
 		eval(f[0]);
 		getDecode();
-		console.info('成功解密内容');
+		printLog('成功解密内容');
 	}
 	baseObject.context = document.queryAllText('#content p').join(`\n　　`);
-	console.info(`正文解析完成\n${baseObject.context}`);
+	printLog(`正文解析完成\n${baseObject.context}`);
 }
 
 // 需要交给App调用的任务链(必要)

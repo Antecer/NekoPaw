@@ -12,18 +12,25 @@ var baseObject = {
 	context: ''
 };
 
+var debugTime = new Date();
+var printLog = (msg, start) => {
+	let thisTime = new Date();
+	if (start) debugTime = thisTime;
+	console.info(new Date(thisTime - debugTime).format('[mm:ss.fff]') + msg);
+}
+
 // 搜索页
 function search(searchKey) {
-	console.info(`开始搜索关键字 ${searchKey}\n${baseObject.info.origin}/search.php?keyword=${searchKey}`);
+	printLog(`开始搜索关键字 ${searchKey}\n${baseObject.info.origin}/search.php?keyword=${searchKey}`, true);
 	let response = fetch(`${baseObject.info.origin}/search.php?keyword=${searchKey}`);
 	let html = response.text();
 	let document = new Document(html);
-	console.info('成功获取结果');
+	printLog('成功获取结果');
 
 	baseObject.search = [];
 	let searchList = document.querySelectorAll('.result-list>div');
 	let titleList = searchList.queryAllText('h3>a');
-	console.info(`解析到 ${titleList.length} 个结果`);
+	printLog(`解析到 ${titleList.length} 个结果`);
 	let authorList = searchList.queryAllText('.result-game-item-info>p:nth-child(1)>span:last-child').map((T) => T.trim());
 	let introList = searchList.queryAllText('.result-game-item-desc');
 	let tagList = searchList.queryAllText('.result-game-item-info>p:nth-child(2)>span:last-child');
@@ -45,17 +52,17 @@ function search(searchKey) {
 			url: urlList[i]
 		});
 	}
-	console.info(`搜索页解析完成\n${JSON.stringify(baseObject.search[0])}\n`);
+	printLog(`搜索页解析完成\n${JSON.stringify(baseObject.search[0])}\n`);
 }
 
 // 详情页
 var isChapterHtml = '';
 function detail(url) {
-	console.info(`开始获取详情页 ${url}`);
-	let response = fetch(url,{charset: "gbk"});
+	printLog(`开始获取详情页 ${url}`);
+	let response = fetch(url, { charset: 'gbk' });
 	let html = response.text();
 	document = new Document(html);
-	console.info('成功获取结果');
+	printLog('成功获取结果');
 
 	baseObject.detail = {
 		title: document.queryAttr('[property="og:novel:book_name"]', 'content'),
@@ -70,19 +77,19 @@ function detail(url) {
 	};
 
 	isChapterHtml = html; // 目录页与详情页是同一页
-	console.info(`详情页解析完成\n${JSON.stringify(baseObject.detail)}\n`);
+	printLog(`详情页解析完成\n${JSON.stringify(baseObject.detail)}\n`);
 }
 
 // 目录页
 function chapter(url) {
 	let html = isChapterHtml;
 	if (!html) {
-		console.info(`开始获取目录页 ${url}`);
-		let response = fetch(url,{charset: "gbk"});
+		printLog(`开始获取目录页 ${url}`);
+		let response = fetch(url, { charset: 'gbk' });
 		html = response.text();
-		console.info('成功获取目录页');
+		printLog('成功获取目录页');
 	} else {
-	    console.info('成功获取目录页(与详情页相同)');
+		printLog('成功获取目录页(与详情页相同)');
 	}
 
 	let reg = 'dd><a href="([^"]+)[^>]+>([^<]+)';
@@ -90,17 +97,21 @@ function chapter(url) {
 		let ret = item.match(reg);
 		return { title: ret[2], time: '', url: ret[1] };
 	});
-	console.info(`目录页解析完成,共 ${baseObject.chapter.length} 章\n第一章: ${JSON.stringify(baseObject.chapter[0])}\n`);
+	printLog(`目录页解析完成,共 ${baseObject.chapter.length} 章\n第一章: ${JSON.stringify(baseObject.chapter[0])}\n`);
 }
 
 // 正文页
 function context(url) {
-	console.info(`开始获取正文页 ${url}`);
-	let response = fetch(url,{charset: "gbk"});
+	printLog(`开始获取正文页 ${url}`);
+	let response = fetch(url, { charset: 'gbk' });
 	let html = response.text();
 	let document = new Document(html);
-	baseObject.context = document.querySelector('#content').textNodes().filter(w=>w).join(`\n　　`);
-	console.info(`正文解析完成\n${baseObject.context}`);
+	baseObject.context = document
+		.querySelector('#content')
+		.textNodes()
+		.filter((w) => w)
+		.join(`\n　　`);
+	printLog(`正文解析完成\n${baseObject.context}`);
 }
 
 // 需要交给App调用的任务链(必要)

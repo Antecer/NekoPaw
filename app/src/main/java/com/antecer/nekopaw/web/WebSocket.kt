@@ -1,7 +1,6 @@
 package com.antecer.nekopaw.web
 
 import com.antecer.nekopaw.api.JsEngine
-import de.prosiebensat1digital.oasisjsbridge.JsValue
 import kotlinx.coroutines.CoroutineScope
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoWSD
@@ -25,13 +24,11 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String) :
 
     override fun onClose(code: NanoWSD.WebSocketFrame.CloseCode, reason: String, initiatedByRemote: Boolean) {
         cancel()
+        JsEngine.ins.remove("ws")
     }
 
     init {
-        JsValue.fromNativeFunction1(JsEngine.instance.jsBridge) { msg: Any? ->
-            println("$msg")
-            send("$msg")
-        }.assignToGlobal("WebSocketPrint")
+        JsEngine.ins.tag("ws").setLogOut { msg -> send(msg) }
     }
 
     private val otherUri = uri
@@ -42,7 +39,7 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String) :
             if (js.isEmpty()) return
             launch(IO) {
                 kotlin.runCatching {
-                    JsEngine.instance.jsBridge.evaluate<Any?>(js)
+                    JsEngine.ins.tag("ws").jsBridge.evaluate<Any>(js)
                 }.onFailure {
                     send(it.stackTraceToString())
                     it.printStackTrace()
