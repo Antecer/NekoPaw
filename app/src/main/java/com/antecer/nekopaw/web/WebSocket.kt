@@ -40,6 +40,7 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String) :
             launch(IO) {
                 kotlin.runCatching {
                     JsEngine.ins.tag("ws").jsBridge.evaluate<Any>(js)
+                    send("--执行完成--")
                 }.onFailure {
                     send(it.stackTraceToString())
                     it.printStackTrace()
