@@ -222,7 +222,8 @@ class OkHttpToJS private constructor() {
                             Log.d("OkHttpAsync", "[${response.code}] ${request.url}?${sendBodyList[resIndex]}\n${response.message}")
                             val retryAgain = retryCount - 1
                             if (retryAgain > 0) {
-                                sleep(100); callAsync(request, resIndex, retryAgain)
+                                sleep(100)
+                                callAsync(request, resIndex, retryAgain)
                             } else {
                                 --actionsStep
                             }
@@ -234,7 +235,8 @@ class OkHttpToJS private constructor() {
                         Log.w("OkHttpAsync", "[${e.message}] ${request.url}?${sendBodyList[resIndex]}")
                         val retryAgain = retryCount - 1
                         if (retryAgain > 0) {
-                            sleep(100); callAsync(request, resIndex, retryAgain)
+                            sleep(100)
+                            callAsync(request, resIndex, retryAgain)
                         } else {
                             --actionsStep
                         }
@@ -259,7 +261,10 @@ class OkHttpToJS private constructor() {
                 }
             }
             // 等待网络请求完成
-            while (actionsStep > 0) sleep(100)
+            while (actionsStep > 0) {
+                sleep(200)
+                Log.d("OkhttpAsync", "剩余线程数：$actionsStep")
+            }
             return resultsText
         } catch (t: Throwable) {
             t.printStackTrace()

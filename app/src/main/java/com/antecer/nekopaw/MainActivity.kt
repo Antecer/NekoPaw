@@ -1,22 +1,17 @@
 package com.antecer.nekopaw
 
 import android.os.Bundle
-import android.os.SystemClock.sleep
 import android.text.method.ScrollingMovementMethod
 import android.util.Log
-import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import com.antecer.nekopaw.api.JsEngine
 import com.antecer.nekopaw.databinding.ActivityMainBinding
 import com.antecer.nekopaw.web.NetworkUtils
 import com.antecer.nekopaw.web.WebHttpServer
 import com.antecer.nekopaw.web.WebSocketServer
-import com.eclipsesource.v8.JavaVoidCallback
-import com.eclipsesource.v8.Releasable
-import com.eclipsesource.v8.V8
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import java.io.IOException
