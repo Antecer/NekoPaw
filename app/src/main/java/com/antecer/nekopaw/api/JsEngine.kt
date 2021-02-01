@@ -81,7 +81,7 @@ class JsEngine {
                     'e' -> Log.e(tag, msg)
                     else -> Log.d(tag, msg)
                 }
-                msgOutput?.invoke(msg);
+                msgOutput?.invoke(msg)
             }, "consoleKt")
             js.executeVoidScript(
                 """
@@ -145,6 +145,7 @@ Date.prototype.format = function (exp) {
 
             // OkHttp 方法注入为 fetch()
             OkHttpToJS.ins.binding(js, "fetch")
+            OkHttpToJS.ins.setLogOut{ msg-> msgOutput?.invoke(msg)}
             // Jsoup 方法注入为 class Document()
             JsoupToJS.ins.tag(t).binding(js, "Document")
         }
