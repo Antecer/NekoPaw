@@ -21,12 +21,12 @@ var printLog = (msg, start) => {
 
 // 搜索页
 function search(searchKey) {
-	printLog(`开始搜索关键字 ${searchKey}\n${baseObject.info.origin}/search.php?keyword=${searchKey}`, true);
+	printLog(`开始搜索关键字 ${searchKey}`, true);
 	let response = fetch(`${baseObject.info.origin}/search.php?keyword=${searchKey}`);
 	let html = response.text();
-	let document = new Document(html);
-	printLog('成功获取结果');
+	printLog(`成功获取搜索结果`);
 
+	let document = new Document(html);
 	baseObject.search = [];
 	let searchList = document.querySelectorAll('.result-list>div');
 	let titleList = searchList.queryAllText('h3>a');
@@ -61,9 +61,9 @@ function detail(url) {
 	printLog(`开始获取详情页 ${url}`);
 	let response = fetch(url, { charset: 'gbk' });
 	let html = response.text();
-	document = new Document(html);
-	printLog('成功获取结果');
+	printLog(`成功获取详情页`);
 
+	document = new Document(html);
 	baseObject.detail = {
 		title: document.queryAttr('[property="og:novel:book_name"]', 'content'),
 		author: document.queryAttr('[property="og:novel:author"]', 'content'),
@@ -87,9 +87,9 @@ function chapter(url) {
 		printLog(`开始获取目录页 ${url}`);
 		let response = fetch(url, { charset: 'gbk' });
 		html = response.text();
-		printLog('成功获取目录页');
+		printLog(`成功获取目录页`);
 	} else {
-		printLog('成功获取目录页(与详情页相同)');
+		printLog(`成功获取目录页(与详情页相同)`);
 	}
 
 	let reg = 'dd><a href="([^"]+)[^>]+>([^<]+)';
@@ -105,12 +105,9 @@ function context(url) {
 	printLog(`开始获取正文页 ${url}`);
 	let response = fetch(url, { charset: 'gbk' });
 	let html = response.text();
+	printLog(`成功获取正文页`);
 	let document = new Document(html);
-	baseObject.context = document
-		.querySelector('#content')
-		.textNodes()
-		.filter((w) => w)
-		.join(`\n　　`);
+	baseObject.context = `　　` + document.querySelector('#content').textNodes().map(w=>w.trim()).filter((w) => w).join(`\n　　`);
 	printLog(`正文解析完成\n${baseObject.context}`);
 }
 

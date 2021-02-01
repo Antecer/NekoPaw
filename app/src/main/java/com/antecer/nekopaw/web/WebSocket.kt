@@ -24,11 +24,6 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String) :
 
     override fun onClose(code: NanoWSD.WebSocketFrame.CloseCode, reason: String, initiatedByRemote: Boolean) {
         cancel()
-        JsEngine.ins.remove("ws")
-    }
-
-    init {
-        JsEngine.ins.tag("ws").setLogOut { msg -> send(msg) }
     }
 
     private val otherUri = uri
@@ -38,13 +33,17 @@ class WebSocket(handshakeRequest: NanoHTTPD.IHTTPSession, uri: String) :
             val js = message.textPayload
             if (js.isEmpty()) return
             launch(IO) {
+                val token = System.currentTimeMillis().toString()
+                val jsManager = JsEngine.ins.tag(token)
+                jsManager.setLogOut { msg -> send(msg) }
                 kotlin.runCatching {
-                    JsEngine.ins.tag("ws").jsBridge.evaluate<Any>(js)
+                    jsManager.js.executeVoidScript(js)
                     send("--执行完成--")
                 }.onFailure {
                     send(it.stackTraceToString())
                     it.printStackTrace()
                 }
+                JsEngine.ins.remove(token)
             }
         }
     }

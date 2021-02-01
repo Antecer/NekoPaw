@@ -1,8 +1,7 @@
 package com.antecer.nekopaw.api
 
-import de.prosiebensat1digital.oasisjsbridge.JsBridge
-import de.prosiebensat1digital.oasisjsbridge.JsToNativeInterface
-import de.prosiebensat1digital.oasisjsbridge.JsValue
+import com.eclipsesource.v8.V8
+import io.alicorn.v8.V8JavaAdapter
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -13,23 +12,51 @@ import org.jsoup.select.Elements
  * 连接 Jsoup 和 QuickJS(JsBridge)
  */
 @Suppress("unused")
-class JsoupToJS {
-    val aMap = mutableMapOf<String, Document>()
-    val bMap = mutableMapOf<String, Element>()
-    val cMap = mutableMapOf<String, Elements>()
+class JsoupToJS private constructor() {
+    companion object {
+        val ins: JsoupToJS by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
+            JsoupToJS()
+        }
+    }
+
+    // 存储多个 JpManager 给不同线程调用
+    private val jsoupMap = mutableMapOf<String, JpManager>()
 
     /**
-     * 释放 jsoup 占用的资源
+     * 调度或新建指定Tag的 JpManager
      */
-    fun dispose() {
-        aMap.clear()
-        bMap.clear()
-        cMap.clear()
+    fun tag(t: String): JpManager {
+        return jsoupMap.getOrPut(t) { JpManager() }
     }
+
+    /**
+     * 移除指定Tag的JsBridge并释放被占用的资源
+     */
+    fun remove(t: String) {
+        jsoupMap[t]?.let {
+            it.dispose()
+            jsoupMap.remove(t)
+        }
+    }
+
     /**
      * 包装 jsoup 方法
      */
-    private val jsoupKtApi = object : JsToNativeInterface {
+    class JpManager {
+        // 创建Element容器
+        private val aMap = mutableMapOf<String, Document>()
+        private val bMap = mutableMapOf<String, Element>()
+        private val cMap = mutableMapOf<String, Elements>()
+
+        /**
+         * 释放 jsoup 占用的资源
+         */
+        fun dispose() {
+            aMap.clear()
+            bMap.clear()
+            cMap.clear()
+        }
+
         fun parse(html: String): String {
             val key = "a${aMap.size}"
             aMap[key] = Jsoup.parse(html)
@@ -200,18 +227,19 @@ class JsoupToJS {
         fun queryBefore(base: String, trait: String, html: String) {
             aMap[base]?.select(trait)?.before(html)
         }
-    }
 
-    /**
-     * 绑定到 JsBridge 对象
-     * @param jsBridge 目标对象名称
-     * @param name 注入到js内的名称
-     */
-    fun binding(jsBridge: JsBridge, apiName: String = "Document") {
-        // 注入 jsoup
-        JsValue.fromNativeObject(jsBridge, jsoupKtApi).assignToGlobal("GlobalJsoup")
-        // 包装 js 方法
-        val jsAPI = """
+        /**
+         * 绑定到 JsBridge 对象
+         * @param jsBridge 目标对象名称
+         * @param name 注入到js内的名称
+         */
+        fun binding(js: V8, apiName: String = "Document") {
+            // 注入 原装的Jsoup
+            V8JavaAdapter.injectClass(Jsoup::class.java, js)
+            // 注入 封装的Jsoup
+            V8JavaAdapter.injectObject("GlobalJsoup", this, js);
+            // 包装 js 方法
+            val jsAPI = """
             class $apiName {
                 #mark;
                 constructor(html, mark) { this.#mark = html ? GlobalJsoup.parse(html) : mark; }
@@ -244,7 +272,8 @@ class JsoupToJS {
             }
             console.debug('Jsoup 方法已注入为 $apiName');
         """.trimIndent()
-        // 注入 js 包装的方法
-        jsBridge.evaluateBlocking<Any>(jsAPI)
+            // 注入 js 包装的方法
+            js.executeVoidScript(jsAPI)
+        }
     }
 }

@@ -1,7 +1,9 @@
 package com.antecer.nekopaw
 
 import android.os.Bundle
+import android.os.SystemClock.sleep
 import android.text.method.ScrollingMovementMethod
+import android.util.Log
 import android.widget.SearchView
 import androidx.appcompat.app.AppCompatActivity
 import com.antecer.nekopaw.api.JsEngine
@@ -9,11 +11,16 @@ import com.antecer.nekopaw.databinding.ActivityMainBinding
 import com.antecer.nekopaw.web.NetworkUtils
 import com.antecer.nekopaw.web.WebHttpServer
 import com.antecer.nekopaw.web.WebSocketServer
-import kotlinx.coroutines.*
+import com.eclipsesource.v8.JavaVoidCallback
+import com.eclipsesource.v8.Releasable
+import com.eclipsesource.v8.V8
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
-import timber.log.Timber
-import timber.log.Timber.DebugTree
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import java.io.IOException
+
 
 class MainActivity : AppCompatActivity(),
     CoroutineScope by MainScope() {
@@ -36,31 +43,10 @@ class MainActivity : AppCompatActivity(),
         UI = ActivityMainBinding.inflate(layoutInflater)
         setContentView(UI.root)
 
-        // 配置日志输出
-        class ReleaseTree : Timber.Tree() {
-            override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
-            }
-        }
-        Timber.plant(if (BuildConfig.DEBUG) DebugTree() else ReleaseTree())
-
-
         // 设置标题
         UI.toolbar.title = "猫爪"
         // 允许内容滚动
         UI.printBox.movementMethod = ScrollingMovementMethod.getInstance()
-
-        // 初始化JS引擎
-        //val js = assets.open("zhaishuyuan.js").readBytes().decodeToString()
-        val js = assets.open("zwdu.js").readBytes().decodeToString()
-        GlobalScope.launch {
-            JsEngine.ins.tag("main").setLogOut { msg ->
-                UI.printBox.post {
-                    UI.printBox.append("$msg\n")
-                }
-            }
-            JsEngine.ins.tag("main").jsBridge.evaluateBlocking<Any>(js)
-            Timber.tag("QuickJS").d("载入JS完成")
-        }
 
         // 绑定搜索事件
         UI.search.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
@@ -97,18 +83,33 @@ class MainActivity : AppCompatActivity(),
 
     fun queryActions(searchKey: String) {
         launch(IO) {
-            val jsManager = JsEngine.ins.tag("main")
+            // 初始化JS引擎
+            val token = System.currentTimeMillis().toString()
+            val jsManager = JsEngine.ins.tag(token)
             try {
-                val stepCount: Int = jsManager.jsBridge.evaluate("parseInt(step.length)")
-                jsManager.jsBridge.evaluateAsync<Any>("step[0]('$searchKey')").await()
+                // 设置日志输出回调
+                jsManager.setLogOut { msg ->
+                    UI.printBox.post {
+                        UI.printBox.append("$msg\n")
+                    }
+                }
+                // 加载数据源
+                val jsSrc = assets.open("zhaishuyuan.js").readBytes().decodeToString()
+                //val jsSrc = assets.open("zwdu.js").readBytes().decodeToString()
+                jsManager.js.executeVoidScript(jsSrc)
+                Log.d("JsManager", "载入JS资源完成")
+                // 读取操作步骤
+                val stepCount: Int = jsManager.js.executeIntegerScript("parseInt(step.length)")
+                jsManager.js.executeVoidScript("step[0](`$searchKey`)")
                 for (index in 1 until stepCount) {
-                    jsManager.jsBridge.evaluateAsync<Any>("step[$index]()").await()
+                    jsManager.js.executeVoidScript("step[$index]()")
                 }
             } catch (err: Exception) {
-                jsManager.jsBridge.evaluateNoRetVal("console.error(${err.stackTraceToString()})")
+                val errMsg = err.stackTraceToString()
+                jsManager.js.executeVoidScript("""console.error(`$errMsg`);""")
             }
-            Timber.tag("QuickJS").d("JS任务完成")
-            jsManager.disposeJsoup()    // 释放jsoup占用的资源
+            Log.d("JsManager", "JS任务完成")
+            JsEngine.ins.remove(token)
         }
     }
 }

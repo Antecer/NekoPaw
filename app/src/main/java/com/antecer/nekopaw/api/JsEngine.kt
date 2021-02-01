@@ -1,16 +1,12 @@
 package com.antecer.nekopaw.api
 
-import de.prosiebensat1digital.oasisjsbridge.*
-import kotlinx.coroutines.cancel
-import timber.log.Timber
-import java.net.URLDecoder
-import java.net.URLEncoder
+import android.util.Log
+import com.eclipsesource.v8.V8
+import com.eclipsesource.v8.utils.MemoryManager
+import io.alicorn.v8.V8JavaAdapter
 
-/**
- *建立 JS 引擎,并加载附加模块
- */
-@Suppress("unused")
-class JsEngine private constructor() {
+
+class JsEngine {
     companion object {
         val ins: JsEngine by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
             JsEngine()
@@ -24,7 +20,7 @@ class JsEngine private constructor() {
      * 调度或新建指定Tag的JsBridge
      */
     fun tag(t: String): JsManager {
-        return jsEngineMap.getOrPut(t) { JsManager() }
+        return jsEngineMap.getOrPut(t) { JsManager(t) }
     }
 
     /**
@@ -32,88 +28,89 @@ class JsEngine private constructor() {
      */
     fun remove(t: String) {
         jsEngineMap[t]?.let {
-            it.disposeJsoup()
-            it.jsBridge.cancel()
+            it.scope.release()
+            JsoupToJS.ins.remove(t)
             jsEngineMap.remove(t)
         }
     }
 
-    class JsManager {
-        // 定义消息回调
-        private var mListener: ((String) -> Unit)? = null
-        fun setLogOut(listener: (String) -> Unit) {
-            this.mListener = listener
+    // 定义URI编码函数
+    @Suppress("unused")
+    object CharsetURI {
+        fun encodeURI(src: String, enc: String?): String {
+            return java.net.URLEncoder.encode(src, enc ?: "utf-8")
         }
 
+        fun decodeURI(src: String, enc: String?): String {
+            return java.net.URLDecoder.decode(src, enc ?: "utf-8")
+        }
+    }
+
+    /**
+     * 包装常用JS方法
+     */
+    class JsManager(t: String) {
         // 创建 JsBridge 对象
-        val jsBridge = JsBridge(JsBridgeConfig.bareConfig())
+        val js: V8 = V8.createV8Runtime()
+        val scope = MemoryManager(js)    //自动内存管理
 
-        // 创建 Jsoup 对象
-        private val jsoupManager = JsoupToJS()
-
-        // 释放 Jsoup 占用的资源
-        fun disposeJsoup() {
-            jsoupManager.dispose()
+        // 定义消息回调
+        private var msgOutput: ((String) -> Unit)? = null
+        fun setLogOut(listener: (String) -> Unit) {
+            this.msgOutput = listener
         }
 
         init {
-            Timber.tag("JsEngine").d("JS引擎已加载!")
-
-            // 注入默认顶级类
-            jsBridge.evaluateNoRetVal("var global = globalThis; var window = globalThis;")
-
+            Log.d("JsManager", "JS引擎已加载")
+            // 包装默认默认JS顶级类
+            js.executeVoidScript("var global = globalThis; var window = globalThis;")
+            // 备注: 若params[n]为undefined,需要toString()再判断; 若params[n]为null,可以直接判断;
             // console 方法注入
-            JsValue.fromNativeFunction2(jsBridge) { mode: String, msg: Any? ->
-                Timber.tag("JsEngine").let { log ->
-                    msg.toString().let {
-                        when (mode[0].toLowerCase()) {
-                            'v' -> log.v(it)
-                            'i' -> log.i(it)
-                            'w' -> log.w(it)
-                            'e' -> log.e(it)
-                            else -> log.d(it)
-                        }
-                    }
+            js.registerJavaMethod({ _, params ->
+                val deg = params[0].toString()
+                var tag = "JsRuntime"
+                var msg = params[1].toString()
+                params[2]?.toString()?.let {
+                    tag = msg
+                    msg = it
                 }
-                mListener?.invoke(msg.toString());
-            }.assignToGlobal("PrintLog")
-            jsBridge.evaluateBlocking<Any>(
+                when (deg[0]) {
+                    'l' -> Log.v(tag, msg)
+                    'i' -> Log.i(tag, msg)
+                    'w' -> Log.w(tag, msg)
+                    'e' -> Log.e(tag, msg)
+                    else -> Log.d(tag, msg)
+                }
+                msgOutput?.invoke(msg);
+            }, "consoleKt")
+            js.executeVoidScript(
                 """
-                var console = {
-                    debug: (msg) => PrintLog('d', msg),
-                    log: (msg) => PrintLog('v', msg),
-                    info: (msg) => PrintLog('i', msg),
-                    warn: (msg) => PrintLog('w', msg),
-                    error: (msg) => PrintLog('e', msg)
-                };
-                console.debug('Timber 方法已注入为 console');
-            """.trimIndent()
-            )
-
-            // URLEncoder 方法注入为 encodeURI()
-            JsValue.fromNativeFunction2(jsBridge) { src: String, enc: String? ->
-                URLEncoder.encode(src, enc ?: "utf-8")
-            }.assignToGlobal("encodeURI")
-            jsBridge.evaluateBlocking<Any>(
-                """
-            String.prototype.encodeURI = function (charset) { return encodeURI(this, charset); }
-            console.debug('URLEncoder 方法已注入为 encodeURI');
+console = {
+	debug: (...msg) => consoleKt('d', msg.shift(), msg.join() || null),
+	log: (...msg) => consoleKt('l', msg.shift(), msg.join() || null),
+	info: (...msg) => consoleKt('i', msg.shift(), msg.join() || null),
+	warn: (...msg) => consoleKt('w', msg.shift(), msg.join() || null),
+	error: (...msg) => consoleKt('e', msg.shift(), msg.join() || null)
+};
+console.log('Log 方法已注入为 console');
         """.trimIndent()
             )
 
-            // URLDecoder 方法注入为 decodeURI()
-            JsValue.fromNativeFunction2(jsBridge) { src: String, enc: String? ->
-                URLDecoder.decode(src, enc ?: "utf-8")
-            }.assignToGlobal("decodeURI")
-            jsBridge.evaluateBlocking<Any>(
+            // 注入方法组 URLEncoder & URLDecoder
+            V8JavaAdapter.injectObject("CharsetURI", CharsetURI, js);
+            js.executeVoidScript(
                 """
-            String.prototype.decodeURI = function (charset) { return decodeURI(this, charset); }
-            console.debug('URLDecoder 方法已注入为 decodeURI');
+            var encodeURI = (src, enc) => { return CharsetURI.encodeURI(src, enc); };
+            String.prototype.encodeURI = function (charset) { return CharsetURI.encodeURI(this, charset); };
+            //console.debug('URLEncoder 方法已注入为 encodeURI');
+            var decodeURI = (src, enc) => { return CharsetURI.decodeURI(src, enc); };
+            String.prototype.decodeURI = function (charset) { return CharsetURI.decodeURI(this, charset); }
+            //console.debug('URLDecoder 方法已注入为 decodeURI');
         """.trimIndent()
             )
 
             // 注入日期格式化函数,用法:new Date().Format("yyyy-MM-dd hh:mm:ss.fff")
-            jsBridge.evaluateBlocking<Any>(
+            js.executeVoidScript(
                 """
 Date.prototype.format = function (exp) {
 	let t = {
@@ -147,9 +144,9 @@ Date.prototype.format = function (exp) {
             )
 
             // OkHttp 方法注入为 fetch()
-            OkHttpToJS.instance.binding(jsBridge, "fetch")
+            OkHttpToJS.ins.binding(js, "fetch")
             // Jsoup 方法注入为 class Document()
-            jsoupManager.binding(jsBridge, "Document")
+            JsoupToJS.ins.tag(t).binding(js, "Document")
         }
     }
 }
