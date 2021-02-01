@@ -28,7 +28,17 @@ class OkHttpToJS private constructor() {
     }
 
     // 创建 OkHttp 对象
-    private val client: OkHttpClient = OkHttpClient().newBuilder().connectTimeout(3, TimeUnit.SECONDS).build()
+    private val client: OkHttpClient = OkHttpClient().newBuilder().connectTimeout(5, TimeUnit.SECONDS).build()
+
+    // 定义消息回调
+    private var msgOutput: ((String) -> Unit)? = null
+    fun setLogOut(listener: (String) -> Unit) {
+        this.msgOutput = listener
+    }
+
+    private fun printLog(msg: String) {
+        msgOutput?.invoke(msg);
+    }
 
     /**
      * 单次网络请求
@@ -112,14 +122,15 @@ class OkHttpToJS private constructor() {
             t.printStackTrace()
             error = t.stackTraceToString()
             Log.d("OkHttp", "[ERROR] ($url): $error")
+        } finally {
+            val json = JSONObject()
+            json.put("finalUrl", finalUrl)
+            json.put("status", status)
+            json.put("statusText", statusText)
+            json.put("error", error)
+            json.put("text", text)
+            return json.toString()
         }
-        val json = JSONObject()
-        json.put("finalUrl", finalUrl)
-        json.put("status", status)
-        json.put("statusText", statusText)
-        json.put("error", error)
-        json.put("text", text)
-        return json.toString()
     }
 
     /**
@@ -131,6 +142,7 @@ class OkHttpToJS private constructor() {
     fun fetchAllKt(inputActions: String, retryNum: Int?, multiCall: Int?): Array<String?> {
         val retrySet = retryNum ?: 3    // 设置重试次数
         client.dispatcher.maxRequestsPerHost = multiCall ?: 5   // 修改 okHttp 并发数(默认5)
+        var maxTimeOut = 300
         val urlList = ArrayList<String?>()
         val methodList = ArrayList<String>()
         val headersList = ArrayList<Headers>()
@@ -232,6 +244,7 @@ class OkHttpToJS private constructor() {
 
                     // 网络错误的回调函数
                     override fun onFailure(call: Call, e: IOException) {
+                        printLog("[OkHttpAsync] (${request.url}　|　${sendBodyList[resIndex]}): ${e.stackTraceToString()}")
                         Log.w("OkHttpAsync", "[${e.message}] ${request.url}?${sendBodyList[resIndex]}")
                         val retryAgain = retryCount - 1
                         if (retryAgain > 0) {
@@ -260,11 +273,8 @@ class OkHttpToJS private constructor() {
                     callAsync(requestBuilder.build(), i, retrySet)
                 }
             }
-            // 等待网络请求完成
-            while (actionsStep > 0) {
-                sleep(200)
-                Log.d("OkhttpAsync", "剩余线程数：$actionsStep")
-            }
+            // 等待网络请求完成(最多等待30s)
+            while (actionsStep > 0 && --maxTimeOut > 0) sleep(100)
             return resultsText
         } catch (t: Throwable) {
             t.printStackTrace()
